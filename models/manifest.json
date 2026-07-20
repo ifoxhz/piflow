@@ -1,0 +1,99 @@
+{
+  "$schema": "./manifest.schema.json",
+  "version": 1,
+  "defaults": {
+    "mirrorRemoteHost": "https://hf-mirror.com",
+    "mirrorHuggingFaceHost": "https://hf-mirror.com"
+  },
+  "models": [
+    {
+      "id": "embedding.bge-m3",
+      "name": "BGE-M3 嵌入模型",
+      "runtime": "transformers.js",
+      "hubId": "Xenova/bge-m3",
+      "localDir": "models/Xenova/bge-m3",
+      "dtype": "fp16",
+      "description": "Transformers.js 用 ONNX 版本；非 BAAI/bge-m3 PyTorch 格式",
+      "requiredFiles": [
+        "config.json",
+        "tokenizer.json",
+        "tokenizer_config.json",
+        "sentencepiece.bpe.model",
+        "special_tokens_map.json",
+        "onnx/model_fp16.onnx"
+      ],
+      "download": {
+        "mirror": "https://hf-mirror.com/Xenova/bge-m3",
+        "official": "https://huggingface.co/Xenova/bge-m3",
+        "files": [
+          {
+            "name": "config.json",
+            "url": "https://hf-mirror.com/Xenova/bge-m3/resolve/main/config.json"
+          },
+          {
+            "name": "tokenizer.json",
+            "url": "https://hf-mirror.com/Xenova/bge-m3/resolve/main/tokenizer.json"
+          },
+          {
+            "name": "tokenizer_config.json",
+            "url": "https://hf-mirror.com/Xenova/bge-m3/resolve/main/tokenizer_config.json"
+          },
+          {
+            "name": "sentencepiece.bpe.model",
+            "url": "https://hf-mirror.com/Xenova/bge-m3/resolve/main/sentencepiece.bpe.model"
+          },
+          {
+            "name": "special_tokens_map.json",
+            "url": "https://hf-mirror.com/Xenova/bge-m3/resolve/main/special_tokens_map.json"
+          },
+          {
+            "name": "onnx/model_fp16.onnx",
+            "url": "https://hf-mirror.com/Xenova/bge-m3/resolve/main/onnx/model_fp16.onnx"
+          }
+        ]
+      }
+    },
+    {
+      "id": "generation.pleias-rag-1b",
+      "name": "Pleias-RAG-1B 生成模型",
+      "runtime": "node-llama-cpp",
+      "hubId": "PleIAs/Pleias-RAG-1B-gguf",
+      "localDir": "models/Pleias-RAG-1B",
+      "description": "GGUF 未量化版本，约 2.4 GB",
+      "requiredFiles": [
+        "Pleias-RAG-1B.gguf"
+      ],
+      "download": {
+        "mirror": "https://hf-mirror.com/PleIAs/Pleias-RAG-1B-gguf",
+        "official": "https://huggingface.co/PleIAs/Pleias-RAG-1B-gguf",
+        "files": [
+          {
+            "name": "Pleias-RAG-1B.gguf",
+            "url": "https://hf-mirror.com/PleIAs/Pleias-RAG-1B-gguf/resolve/main/Pleias-RAG-1B.gguf"
+          }
+        ]
+      }
+    },
+    {
+      "id": "generation.qwen2.5-3b-instruct",
+      "name": "Qwen2.5-3B-Instruct 本地生成（GGUF）",
+      "runtime": "node-llama-cpp",
+      "hubId": "Qwen/Qwen2.5-3B-Instruct-GGUF",
+      "localDir": "models/Qwen2.5-3B-Instruct",
+      "description": "Q4_K_M 量化约 2.0 GB，WSL CPU 离线 RAG 推荐",
+      "requiredFiles": [
+        "qwen2.5-3b-instruct-q4_k_m.gguf"
+      ],
+      "download": {
+        "mirror": "https://hf-mirror.com/Qwen/Qwen2.5-3B-Instruct-GGUF",
+        "official": "https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF",
+        "files": [
+          {
+            "name": "qwen2.5-3b-instruct-q4_k_m.gguf",
+            "url": "https://hf-mirror.com/Qwen/Qwen2.5-3B-Instruct-GGUF/resolve/main/qwen2.5-3b-instruct-q4_k_m.gguf"
+          }
+        ]
+      }
+    }
+  ]
+}
