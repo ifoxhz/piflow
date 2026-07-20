@@ -1,0 +1,10 @@
+packages:
+  - apps/*
+  - packages/*
+
+ignoredBuiltDependencies:
+  - better-sqlite3
+  - esbuild
+  - onnxruntime-node
+  - protobufjs
+  - sharp
