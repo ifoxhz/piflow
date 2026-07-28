@@ -1,4 +1,5 @@
 import type { ScoredChunk } from '../retrieval/retriever.js';
+import type { RagPromptOptions } from './rag-instruct-prompt.js';
 
 const MAX_SOURCE_CHARS = 800;
 
@@ -7,7 +8,17 @@ function truncate(text: string, max: number): string {
   return `${text.slice(0, max)}…`;
 }
 
-export function buildPleiasPrompt(query: string, chunks: ScoredChunk[]): string {
+export function buildPleiasPrompt(
+  query: string,
+  chunks: ScoredChunk[],
+  options?: RagPromptOptions,
+): string {
+  const hintParts: string[] = [];
+  if (options?.intent) hintParts.push(`intent=${options.intent}`);
+  if (options?.answerHint?.trim()) hintParts.push(options.answerHint.trim());
+  const queryText =
+    hintParts.length > 0 ? `${query}\n[constraints: ${hintParts.join('; ')}]` : query;
+
   const sources = chunks
     .map((chunk, i) => {
       const id = i + 1;
@@ -17,7 +28,7 @@ export function buildPleiasPrompt(query: string, chunks: ScoredChunk[]): string 
     .join('\n');
 
   return [
-    `<|query_start|>${query}<|query_end|>`,
+    `<|query_start|>${queryText}<|query_end|>`,
     sources,
     '<|source_analysis_start|>',
   ].join('\n');
