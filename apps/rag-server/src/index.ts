@@ -6,6 +6,7 @@ import { getHealth, loadManifest, validateModel } from './model-manager.js';
 import { ingestRoutes } from './routes/ingest.js';
 import { documentRoutes } from './routes/documents.js';
 import { chatRoutes } from './routes/chat.js';
+import { getOllamaUrl, isOllamaConfigured } from './services/generation/ollama.js';
 
 const PORT = Number(process.env.BLUELAMP_RAG_PORT ?? 3847);
 
@@ -45,5 +46,8 @@ app.route('/documents', documentRoutes);
 app.route('/chat', chatRoutes);
 
 console.log(`[rag-server] listening on http://127.0.0.1:${PORT}`);
+if (isOllamaConfigured()) {
+  console.log(`[rag-server] Ollama generation → ${getOllamaUrl()}`);
+}
 
 serve({ fetch: app.fetch, port: PORT });

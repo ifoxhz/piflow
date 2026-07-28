@@ -1,12 +1,13 @@
 import type { ScoredChunk } from '../retrieval/retriever.js';
+import { logLlmQueryInput, summarizeChunksForLog } from '../chat/llm-query-log.js';
 import { isChineseQuery, isPleiasModelName } from './language.js';
 import { buildPleiasPrompt, parsePleiasOutput } from './pleias-prompt.js';
-import { buildRagInstructPrompt } from './rag-instruct-prompt.js';
+import { buildRagInstructPrompt, type RagPromptOptions } from './rag-instruct-prompt.js';
 
-const DEFAULT_OLLAMA_URL = 'http://127.0.0.1:11434';
+const DEFAULT_OLLAMA_URL = 'http://10.0.0.7:11434';
 const GENERATION_TIMEOUT_MS = Number(process.env.BLUELAMP_CHAT_TIMEOUT_MS ?? 180_000);
 
-function getOllamaUrl(): string {
+export function getOllamaUrl(): string {
   return (process.env.BLUELAMP_OLLAMA_URL ?? DEFAULT_OLLAMA_URL).replace(/\/$/, '');
 }
 
@@ -19,7 +20,7 @@ function getChineseOllamaModel(): string | undefined {
   return m || undefined;
 }
 
-function resolveModel(query: string): string {
+export function resolveOllamaModel(query: string): string {
   const zh = getChineseOllamaModel();
   if (isChineseQuery(query) && zh) return zh;
   return getOllamaModel();
@@ -71,10 +72,22 @@ async function ollamaGenerate(
   }
 }
 
-/** Qwen 3.5 等 thinking 模型需走 chat API 并关闭 think，否则 response 为空 */
-async function ollamaChat(model: string, userContent: string): Promise<string> {
+export interface OllamaChatOptions {
+  temperature?: number;
+  topP?: number;
+  numPredict?: number;
+  timeoutMs?: number;
+}
+
+/** Shared chat completion (generation + retrieval planning). */
+export async function ollamaChatComplete(
+  model: string,
+  userContent: string,
+  options: OllamaChatOptions = {},
+): Promise<string> {
+  const timeoutMs = options.timeoutMs ?? GENERATION_TIMEOUT_MS;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort('ollama timeout'), GENERATION_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort('ollama timeout'), timeoutMs);
 
   try {
     const res = await fetch(`${getOllamaUrl()}/api/chat`, {
@@ -87,9 +100,9 @@ async function ollamaChat(model: string, userContent: string): Promise<string> {
         stream: false,
         think: false,
         options: {
-          temperature: 0.3,
-          top_p: 0.9,
-          num_predict: 1200,
+          temperature: options.temperature ?? 0.3,
+          top_p: options.topP ?? 0.9,
+          num_predict: options.numPredict ?? 1200,
         },
       }),
     });
@@ -121,17 +134,43 @@ async function ollamaChat(model: string, userContent: string): Promise<string> {
 export async function generateViaOllama(
   query: string,
   chunks: ScoredChunk[],
+  promptOptions?: RagPromptOptions,
 ): Promise<string> {
-  const model = resolveModel(query);
+  const model = resolveOllamaModel(query);
+  const endpoint = getOllamaUrl();
 
   if (isPleiasModelName(model)) {
-    const prompt = buildPleiasPrompt(query, chunks);
+    const prompt = buildPleiasPrompt(query, chunks, promptOptions);
     const raw = await ollamaGenerate(model, prompt, ['#END#', '<|answer_end|>']);
-    return parsePleiasOutput(raw);
+    const answer = parsePleiasOutput(raw);
+    logLlmQueryInput({
+      ts: new Date().toISOString(),
+      stage: 'generation',
+      backend: 'ollama',
+      model,
+      endpoint,
+      userQuery: query,
+      prompt,
+      response: raw,
+      retrieved: summarizeChunksForLog(chunks),
+    });
+    return answer;
   }
 
-  const prompt = buildRagInstructPrompt(query, chunks);
-  return ollamaChat(model, prompt);
+  const prompt = buildRagInstructPrompt(query, chunks, promptOptions);
+  const answer = await ollamaChatComplete(model, prompt);
+  logLlmQueryInput({
+    ts: new Date().toISOString(),
+    stage: 'generation',
+    backend: 'ollama',
+    model,
+    endpoint,
+    userQuery: query,
+    prompt,
+    response: answer,
+    retrieved: summarizeChunksForLog(chunks),
+  });
+  return answer;
 }
 
 export async function checkOllamaHealth(): Promise<boolean> {

@@ -43,6 +43,8 @@ export interface Message {
   content: string;
   createdAt: string;
   citations?: Citation[];
+  /** Present on assistant turns when reRAG plan was returned. */
+  retrievalPlan?: RetrievalPlan;
 }
 
 export interface Citation {
@@ -56,6 +58,41 @@ export interface Citation {
   page?: number;
   /** Nearest section heading from chunk metadata. */
   heading?: string;
+}
+
+/** Intent for reRAG retrieval planning (docs/reRAG.md). */
+export type RetrievalIntent =
+  | 'fact'
+  | 'enumerate'
+  | 'explain'
+  | 'compare'
+  | 'locate'
+  | 'other';
+
+/** Structured plan produced before vector search. */
+export interface RetrievalPlan {
+  intent: RetrievalIntent;
+  /** 1–5 queries for dense embedding search (prefer 2–4; enumerate/compare up to 5). */
+  denseQueries: string[];
+  /** Proper nouns / terms; MVP: log & return only, no scoring. */
+  keywords: string[];
+  /** Short generation-side constraint (from intent template). */
+  answerHint: string;
+  /** Matched generic intent template id (reRAG template router). */
+  templateId?: string;
+  /** Cosine score of best exemplar match for templateId. */
+  templateScore?: number;
+}
+
+export interface ChatHistoryMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface ChatResult {
+  reply: string;
+  citations: Citation[];
+  retrievalPlan: RetrievalPlan;
 }
 
 export interface QuickAction {

@@ -1,18 +1,16 @@
+import { useEffect, useId, useRef, useState } from 'react';
 import type { AppView } from '@bluelamp/core';
-
-export interface RecentChat {
-  id: string;
-  title: string;
-  time: string;
-}
+import type { ChatTimeGroup } from '../hooks/useChatSessions';
 
 interface SidebarProps {
   view: AppView;
-  recentChats: RecentChat[];
+  chatGroups: ChatTimeGroup[];
   activeChatId: string | null;
   onNewChat: () => void;
   onSelectChat: (id: string) => void;
   onNavigate: (view: AppView) => void;
+  onDeleteChat: (id: string) => void;
+  onRenameChat: (id: string, title: string) => void;
 }
 
 function LogoIcon() {
@@ -65,14 +63,152 @@ function GearIcon() {
   );
 }
 
+function MoreIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <circle cx="3.5" cy="8" r="1.25" fill="currentColor" />
+      <circle cx="8" cy="8" r="1.25" fill="currentColor" />
+      <circle cx="12.5" cy="8" r="1.25" fill="currentColor" />
+    </svg>
+  );
+}
+
+interface ChatRowProps {
+  title: string;
+  active: boolean;
+  onSelect: () => void;
+  onDelete: () => void;
+  onRename: (title: string) => void;
+}
+
+function ChatRow({ title, active, onSelect, onDelete, onRename }: ChatRowProps) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+  const [draft, setDraft] = useState(title);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const menuId = useId();
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onPointerDown = (e: PointerEvent) => {
+      if (!menuRef.current?.contains(e.target as Node)) setMenuOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMenuOpen(false);
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [menuOpen]);
+
+  useEffect(() => {
+    if (renaming) {
+      setDraft(title);
+      requestAnimationFrame(() => inputRef.current?.select());
+    }
+  }, [renaming, title]);
+
+  const commitRename = () => {
+    const next = draft.replace(/\s+/g, ' ').trim();
+    setRenaming(false);
+    if (next && next !== title) onRename(next);
+  };
+
+  if (renaming) {
+    return (
+      <li className="chat-list-row is-renaming">
+        <input
+          ref={inputRef}
+          className="chat-rename-input"
+          value={draft}
+          aria-label="重命名对话"
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commitRename}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              commitRename();
+            }
+            if (e.key === 'Escape') {
+              e.preventDefault();
+              setRenaming(false);
+              setDraft(title);
+            }
+          }}
+        />
+      </li>
+    );
+  }
+
+  return (
+    <li className={`chat-list-row${active ? ' is-active' : ''}${menuOpen ? ' is-menu-open' : ''}`}>
+      <button type="button" className="chat-list-item" onClick={onSelect}>
+        <span className="chat-list-title">{title}</span>
+      </button>
+      <div className="chat-item-actions" ref={menuRef}>
+        <button
+          type="button"
+          className="chat-item-more"
+          aria-label="对话操作"
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
+          aria-controls={menuId}
+          onClick={(e) => {
+            e.stopPropagation();
+            setMenuOpen((v) => !v);
+          }}
+        >
+          <MoreIcon />
+        </button>
+        {menuOpen && (
+          <div className="chat-item-menu" id={menuId} role="menu">
+            <button
+              type="button"
+              role="menuitem"
+              className="chat-item-menu-item"
+              onClick={(e) => {
+                e.stopPropagation();
+                setMenuOpen(false);
+                setRenaming(true);
+              }}
+            >
+              重命名
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className="chat-item-menu-item is-danger"
+              onClick={(e) => {
+                e.stopPropagation();
+                setMenuOpen(false);
+                onDelete();
+              }}
+            >
+              删除
+            </button>
+          </div>
+        )}
+      </div>
+    </li>
+  );
+}
+
 export function Sidebar({
   view,
-  recentChats,
+  chatGroups,
   activeChatId,
   onNewChat,
   onSelectChat,
   onNavigate,
+  onDeleteChat,
+  onRenameChat,
 }: SidebarProps) {
+  const hasChats = chatGroups.some((g) => g.chats.length > 0);
+
   return (
     <aside className="sidebar">
       <div className="sidebar-header">
@@ -86,24 +222,26 @@ export function Sidebar({
       </button>
 
       <div className="sidebar-section">
-        <div className="sidebar-section-label">Recent Chats</div>
-        <ul className="chat-list">
-          {recentChats.length === 0 && (
-            <li className="chat-list-empty">No chats yet</li>
-          )}
-          {recentChats.map((chat) => (
-            <li key={chat.id}>
-              <button
-                type="button"
-                className={`chat-list-item ${activeChatId === chat.id ? 'active' : ''}`}
-                onClick={() => onSelectChat(chat.id)}
-              >
-                <span className="chat-list-title">{chat.title}</span>
-                <span className="chat-list-time">{chat.time}</span>
-              </button>
-            </li>
+        {!hasChats && <div className="chat-list-empty">暂无对话</div>}
+        <div className="chat-groups">
+          {chatGroups.map((group) => (
+            <div key={group.id} className="chat-group">
+              <div className="chat-group-label">{group.label}</div>
+              <ul className="chat-list">
+                {group.chats.map((chat) => (
+                  <ChatRow
+                    key={chat.id}
+                    title={chat.title}
+                    active={activeChatId === chat.id}
+                    onSelect={() => onSelectChat(chat.id)}
+                    onDelete={() => onDeleteChat(chat.id)}
+                    onRename={(nextTitle) => onRenameChat(chat.id, nextTitle)}
+                  />
+                ))}
+              </ul>
+            </div>
           ))}
-        </ul>
+        </div>
       </div>
 
       <nav className="sidebar-footer">

@@ -63,6 +63,30 @@ export async function searchChunks(query: string, topK = DEFAULT_TOP_K): Promise
   return scored.slice(0, topK).map(({ row, score }) => toScored(row, score));
 }
 
+/**
+ * Multi-query dense search: each query retrieves `perQueryK`, then merge by
+ * chunkId keeping the max score, return global topK.
+ */
+export async function searchWithQueries(
+  queries: string[],
+  topK = DEFAULT_TOP_K,
+  perQueryK = DEFAULT_TOP_K,
+): Promise<ScoredChunk[]> {
+  const unique = [...new Set(queries.map((q) => q.trim()).filter(Boolean))];
+  if (unique.length === 0) return [];
+
+  const merged = new Map<string, ScoredChunk>();
+  for (const q of unique) {
+    const hits = await searchChunks(q, perQueryK);
+    for (const hit of hits) {
+      const prev = merged.get(hit.chunkId);
+      if (!prev || hit.score > prev.score) merged.set(hit.chunkId, hit);
+    }
+  }
+
+  return [...merged.values()].sort((a, b) => b.score - a.score).slice(0, topK);
+}
+
 export function toCitations(chunks: ScoredChunk[]): Citation[] {
   return chunks.map((c, i) => ({
     sourceId: `[${i + 1}]`,

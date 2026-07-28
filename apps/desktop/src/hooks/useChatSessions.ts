@@ -3,17 +3,15 @@ import type { ChatSession, Message } from '@bluelamp/core';
 import {
   appendMessage,
   createSession,
-  formatChatTime,
+  deleteSession,
+  groupSessionsByTime,
   loadSessions,
+  renameSession,
   saveSessions,
-  sortSessionsByRecent,
+  type ChatTimeGroup,
 } from '../lib/chatStorage';
 
-export interface RecentChatItem {
-  id: string;
-  title: string;
-  time: string;
-}
+export type { ChatTimeGroup };
 
 export function useChatSessions() {
   const [sessions, setSessions] = useState<ChatSession[]>(() => loadSessions());
@@ -30,13 +28,8 @@ export function useChatSessions() {
 
   const messages = activeSession?.messages ?? [];
 
-  const recentChats: RecentChatItem[] = useMemo(
-    () =>
-      sortSessionsByRecent(sessions).map((s) => ({
-        id: s.id,
-        title: s.title,
-        time: formatChatTime(s.updatedAt),
-      })),
+  const chatGroups: ChatTimeGroup[] = useMemo(
+    () => groupSessionsByTime(sessions),
     [sessions],
   );
 
@@ -65,14 +58,25 @@ export function useChatSessions() {
     setSessions((prev) => appendMessage(prev, sessionId, message));
   }, []);
 
+  const removeChat = useCallback((sessionId: string) => {
+    setSessions((prev) => deleteSession(prev, sessionId));
+    setActiveChatId((cur) => (cur === sessionId ? null : cur));
+  }, []);
+
+  const renameChat = useCallback((sessionId: string, title: string) => {
+    setSessions((prev) => renameSession(prev, sessionId, title));
+  }, []);
+
   return {
     sessions,
     activeChatId,
     messages,
-    recentChats,
+    chatGroups,
     startNewChat,
     selectChat,
     ensureSession,
     addMessage,
+    removeChat,
+    renameChat,
   };
 }

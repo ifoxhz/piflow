@@ -25,6 +25,9 @@ export default defineConfig(async () => ({
       "/api": {
         target: `http://127.0.0.1:${ragPort}`,
         changeOrigin: true,
+        // Chat can take 30–180s (embed + Ollama); default proxy idle can drop early.
+        timeout: 300_000,
+        proxyTimeout: 300_000,
         rewrite: (path) => path.replace(/^\/api/, ""),
       },
     },

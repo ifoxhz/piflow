@@ -3,6 +3,9 @@ interface ChatInputProps {
   onChange: (value: string) => void;
   onSend: () => void;
   disabled?: boolean;
+  /** When true: LLM builds retrieval plan before vector search. */
+  planningEnabled: boolean;
+  onPlanningChange: (enabled: boolean) => void;
 }
 
 function PaperclipIcon() {
@@ -33,7 +36,14 @@ function SendIcon() {
   );
 }
 
-export function ChatInput({ value, onChange, onSend, disabled }: ChatInputProps) {
+export function ChatInput({
+  value,
+  onChange,
+  onSend,
+  disabled,
+  planningEnabled,
+  onPlanningChange,
+}: ChatInputProps) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (value.trim() && !disabled) {
@@ -51,6 +61,25 @@ export function ChatInput({ value, onChange, onSend, disabled }: ChatInputProps)
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
       />
+      <button
+        type="button"
+        className={`btn-plan${planningEnabled ? ' is-on' : ''}`}
+        aria-pressed={planningEnabled}
+        aria-label={
+          planningEnabled
+            ? '规划已开启：先生成检索计划再搜索'
+            : '规划已关闭：原句直接向量搜索'
+        }
+        title={
+          planningEnabled
+            ? '规划开：LLM 构建检索结构 → 向量搜索 → LLM'
+            : '规划关：原句 → 向量搜索 → LLM'
+        }
+        disabled={disabled}
+        onClick={() => onPlanningChange(!planningEnabled)}
+      >
+        规划
+      </button>
       <button type="button" className="btn-icon" aria-label="Attach file" disabled={disabled}>
         <PaperclipIcon />
       </button>
