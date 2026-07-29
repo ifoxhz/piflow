@@ -14,6 +14,7 @@ import { generateViaOllama, isOllamaConfigured } from '../generation/ollama.js';
 import type { RagPromptOptions } from '../generation/rag-instruct-prompt.js';
 import { generateAnswerLocal } from '../generation/pleias.js';
 import { buildRetrievalPlan, fallbackPlan } from '../retrieval/query-plan.js';
+import { resolveRetrievalTopK } from '../retrieval/query-templates.js';
 import {
   searchChunks,
   searchWithQueries,
@@ -22,8 +23,6 @@ import {
 } from '../retrieval/retriever.js';
 
 const USE_LOCAL_PLEIAS = process.env.BLUELAMP_USE_PLEIAS === 'true';
-const FINAL_TOP_K = 5;
-const PER_QUERY_K = 5;
 
 export interface AskOptions {
   /** When true: LLM builds RetrievalPlan then multi-query search. When false: raw query → vector search. */
@@ -112,10 +111,11 @@ export async function ask(
   }
   planMs = elapsedMs(planStarted);
 
+  const { finalTopK, perQueryK } = resolveRetrievalTopK(plan.templateId);
   const retrieveStarted = nowMs();
   const chunks = usePlan
-    ? await searchWithQueries(plan.denseQueries, FINAL_TOP_K, PER_QUERY_K)
-    : await searchChunks(query, FINAL_TOP_K);
+    ? await searchWithQueries(plan.denseQueries, finalTopK, perQueryK)
+    : await searchChunks(query, finalTopK);
   retrieveMs = elapsedMs(retrieveStarted);
 
   const finishTiming = (chunkCount: number, gen?: PipelineTimingEntry['meta']['generation']) => {
@@ -135,6 +135,8 @@ export async function ask(
       meta: {
         templateId: plan.templateId,
         denseQueryCount: plan.denseQueries.length,
+        finalTopK,
+        perQueryK,
         chunkCount,
         generation: gen,
         ...(error ? { error } : {}),
