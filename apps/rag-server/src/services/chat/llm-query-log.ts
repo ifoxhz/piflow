@@ -48,6 +48,10 @@ export interface PipelineTimingEntry {
   meta: {
     templateId?: string;
     denseQueryCount: number;
+    /** Template-resolved merge topK (chunks fed to generation). */
+    finalTopK?: number;
+    /** Per dense-query retrieve depth before merge. */
+    perQueryK?: number;
     chunkCount: number;
     generation?: 'ollama' | 'local-llm' | 'pleias' | 'retrieval-fallback' | 'none';
     error?: string;
@@ -118,6 +122,7 @@ export function logPipelineTiming(entry: PipelineTimingEntry): void {
     console.log(
       `[timing] usePlan=${entry.useRetrievalPlan} ${parts.join(' ')}` +
         ` chunks=${entry.meta.chunkCount} queries=${entry.meta.denseQueryCount}` +
+        (entry.meta.finalTopK != null ? ` topK=${entry.meta.finalTopK}` : '') +
         (entry.meta.templateId ? ` template=${entry.meta.templateId}` : '') +
         (entry.meta.generation ? ` gen=${entry.meta.generation}` : '') +
         ` query=${JSON.stringify(entry.userQuery)}`,

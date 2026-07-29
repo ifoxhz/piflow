@@ -10,6 +10,13 @@ export type QueryTemplateId =
   | 'explain_how'
   | 'compare_two';
 
+export interface RetrievalTopK {
+  /** Chunks kept after multi-query merge (fed to the answer LLM). */
+  finalTopK: number;
+  /** Chunks retrieved per dense query before merge. */
+  perQueryK: number;
+}
+
 export interface QueryTemplate {
   id: QueryTemplateId;
   /** Maps onto RetrievalPlan.intent for generation logging. */
@@ -20,7 +27,13 @@ export interface QueryTemplate {
   answerHint: string;
   /** Narrow instructions for the planning LLM when filling denseQueries. */
   queryRecipe: string;
+  /** How many chunks to retrieve for this intent shape. */
+  finalTopK: number;
+  perQueryK: number;
 }
+
+/** Used when templateId is missing or unknown (no-plan / fallback path). */
+const DEFAULT_RETRIEVAL_TOP_K: RetrievalTopK = { finalTopK: 8, perQueryK: 6 };
 
 export const QUERY_TEMPLATES: QueryTemplate[] = [
   {
@@ -38,6 +51,8 @@ export const QUERY_TEMPLATES: QueryTemplate[] = [
       '只列出资料中明确论述该主题的文档或章节；不要把仅顺带提及或相邻主题算入；每项注明来源编号；没有则说明未找到。',
     queryRecipe:
       '从当前问题抽出主题词，生成 2～5 条 denseQueries：必须包含主题专名原文；可含「定义/专节/应用」等侧面；禁止空壳句如「相关文档与资源」；不要引入用户未提及的领域词。',
+    finalTopK: 12,
+    perQueryK: 8,
   },
   {
     id: 'enumerate_entities',
@@ -54,6 +69,8 @@ export const QUERY_TEMPLATES: QueryTemplate[] = [
       '只统计或列出资料中的具名项；署名、匿名类别、仅作背景的名称按题目要求区分说明；勿列出资料中未出现的名字；尽量给出数量或清单并引用。',
     queryRecipe:
       '生成 3～5 条 denseQueries，偏「具名/姓名/角色/专有名词清单」；保留问题中的作品或范围词；避免只检索「筛选方法/统计流程」类方法论段落。',
+    finalTopK: 12,
+    perQueryK: 8,
   },
   {
     id: 'summarize_overview',
@@ -70,6 +87,8 @@ export const QUERY_TEMPLATES: QueryTemplate[] = [
       '分点概括资料中的要点；不引入资料未出现的论点；可引用编号。',
     queryRecipe:
       '生成 2～4 条 denseQueries，偏向导论、概述、结论、核心论点；保留用户指定的范围（某书/某章）。',
+    finalTopK: 15,
+    perQueryK: 10,
   },
   {
     id: 'fact_lookup',
@@ -88,6 +107,8 @@ export const QUERY_TEMPLATES: QueryTemplate[] = [
       '用一两句给出资料中的明确事实并引用；资料未写明则直说不知道，禁止猜测。',
     queryRecipe:
       '生成 1～3 条短 denseQueries，紧扣要查的事实槽（时间/人物/定义/数据）；保留专名原文。',
+    finalTopK: 5,
+    perQueryK: 5,
   },
   {
     id: 'locate_passage',
@@ -104,6 +125,8 @@ export const QUERY_TEMPLATES: QueryTemplate[] = [
       '指出文档名与章节或页码（若有）；简洁定位，不要展开成完整教程。',
     queryRecipe:
       '生成 2～4 条 denseQueries，保留用户要定位的独特短语或主题；偏章节标题与原文表述。注意：「有哪些材料讲了 X」不是 locate，那是盘点来源。',
+    finalTopK: 5,
+    perQueryK: 5,
   },
   {
     id: 'explain_how',
@@ -122,6 +145,8 @@ export const QUERY_TEMPLATES: QueryTemplate[] = [
       '仅根据资料解释步骤或原因；分点简述；不要引入资料外的理论体系。',
     queryRecipe:
       '生成 2～4 条 denseQueries，偏向机制、步骤、原因、流程描述；保留主题专名。',
+    finalTopK: 8,
+    perQueryK: 6,
   },
   {
     id: 'compare_two',
@@ -138,6 +163,8 @@ export const QUERY_TEMPLATES: QueryTemplate[] = [
       '按资料分点对比；每点可引用；资料未比较的维度不要补充。',
     queryRecipe:
       '识别要对比的两侧（若有），为每侧至少一条 denseQuery，另可加一条「对比/区别」表述；保留专名。',
+    finalTopK: 10,
+    perQueryK: 6,
   },
 ];
 
@@ -149,4 +176,13 @@ export const GENERIC_FALLBACK_TEMPLATE: QueryTemplate = {
     '仅根据资料回答并引用；资料不足则说明未找到。',
   queryRecipe:
       '生成 1～3 条 denseQueries，紧扣用户问题中的实体与主题；去掉寒暄。',
+  ...DEFAULT_RETRIEVAL_TOP_K,
 };
+
+/** Resolve final/per-query topK from a routed template id (defaults when unknown). */
+export function resolveRetrievalTopK(templateId?: string): RetrievalTopK {
+  if (!templateId) return DEFAULT_RETRIEVAL_TOP_K;
+  const matched = QUERY_TEMPLATES.find((t) => t.id === templateId);
+  if (!matched) return DEFAULT_RETRIEVAL_TOP_K;
+  return { finalTopK: matched.finalTopK, perQueryK: matched.perQueryK };
+}

@@ -8,15 +8,23 @@
 
 ## 1. 背景与动机
 
-### 1.1 现状
+### 1.1 演进
 
-当前问答链路为：
+早期问答链路为：
 
 ```
-用户输入 → BGE-M3 向量检索 → LLM 生成答案
+用户输入 → BGE-M3 向量检索（固定 topK）→ LLM 生成答案
 ```
 
-实现见 `orchestrator.ask`：用户原句直接 `searchChunks`，再生成。
+现已演进为 **模板路由 + 结构化规划 + 多路检索 + 动态 topK**：
+
+```
+用户输入 + 会话历史
+  → 意图模板路由（exemplar 相似度）
+  → LLM₁ 按模板配方生成 RetrievalPlan（denseQueries）
+  → 多路 dense 检索 → 合并 → 按 templateId 动态 topK
+  → LLM₂ 生成答案（原问 + intent/answerHint + chunks）
+```
 
 ### 1.2 问题
 
@@ -25,20 +33,15 @@
 2. **单向量查询无法表达多维度**  
    意图（列举 / 事实 / 对比）、专名、口语改写无法在一次 embed 中显式分离。
 3. **无会话上下文**  
-   前端已有多轮 `messages`，但 `POST /chat` 只传当前句；「他后来呢」无法消解指代。
+   「他后来呢」无法消解指代；规划侧需要 history。
 4. **单纯「LLM 改写成另一句再检索」不够**  
-   且仓库尚无查询语法引擎；输出假 SQL/Lucene 无执行面。
+   且仓库无查询语法引擎；输出假 SQL/Lucene 无执行面。
+5. **固定 topK 不适配任务广度**  
+   事实题 5 条够用；总结/时间线/列举需要更宽召回，否则答案残缺。
 
 ### 1.3 目标
 
-在每次检索前，用 LLM 生成**可执行的结构化检索计划（RetrievalPlan）**，再检索、再生成：
-
-```
-用户输入 + 会话历史
-  → LLM₁ 生成 RetrievalPlan
-  → 多路 dense 检索（合并）→ topK=5
-  → LLM₂ 生成答案（原问 + intent 约束 + chunks）
-```
+用 **通用意图模板** 把「问法形状」与「检索/生成策略」绑定；规划 LLM 只填可执行字段；按模板控制召回深度。
 
 **不追求**通用「查询语法」；计划字段必须与现有检索能力对齐。
 
@@ -55,28 +58,164 @@
 | keywords 观察先行 | 首版 keywords 只记录，不参与打分 |
 | 失败可回退 | 规划失败时退化为「原句单路检索」，聊天不中断 |
 | 可观测 | 规划与生成入参写入 `.data/logs/llm-queries.jsonl`，API 回传 plan |
-| 通用意图模板 | BGE-M3 对 exemplar 问法做相似度路由；`answerHint`/`intent` 由模板强制，不绑领域主题 |
+| 通用意图模板 | BGE-M3 对 exemplar 问法做相似度路由；`answerHint`/`intent`/topK 由模板强制，不绑领域主题 |
+| 召回深度随意图 | 精确题浅召回、综合题深召回；按 `templateId` 而非全局常数 |
 
 ---
 
 ## 2.1 通用意图模板路由（MVP）
 
-检索规划前，用 BGE-M3（无 retrieval prefix）将用户问句与各模板 **通用 exemplar** 做 cosine，按模板取 max 分选中模板。
+检索规划前，用 BGE-M3（**无** retrieval prefix）将用户问句与各模板 **通用 exemplar** 做 cosine，按模板取 max 分选中模板。
 
-| templateId | 用途 | intent |
-|------------|------|--------|
-| `inventory_sources` | 有哪些材料/章节讲了某主题 | enumerate |
-| `enumerate_entities` | 多少/哪些具名实体 | enumerate |
-| `summarize_overview` | 总结/概览 | other |
-| `fact_lookup` | 单点事实 | fact |
-| `locate_passage` | 定位出处 | locate |
-| `explain_how` | 机制/原因 | explain |
-| `compare_two` | 对比 | compare |
+| templateId | 用途 | intent | finalTopK | perQueryK |
+|------------|------|--------|----------:|----------:|
+| `inventory_sources` | 有哪些材料/章节讲了某主题 | enumerate | 12 | 8 |
+| `enumerate_entities` | 多少/哪些具名实体 | enumerate | 12 | 8 |
+| `summarize_overview` | 总结/概览/时间线类综合 | other | 15 | 10 |
+| `fact_lookup` | 单点事实 | fact | 5 | 5 |
+| `locate_passage` | 定位出处 | locate | 5 | 5 |
+| `explain_how` | 机制/原因 | explain | 8 | 6 |
+| `compare_two` | 对比 | compare | 10 | 6 |
+| （未知 / 无 plan） | 默认 | — | 8 | 6 |
 
 - exemplar **禁止**写死当前知识库主题（如某书、某技术名）；主题只从当次用户输入抽取。
-- `answerHint` **始终**来自模板；规划 LLM 只填 `denseQueries` + `keywords`。
-- 分低于 `BLUELAMP_TEMPLATE_SCORE_MIN`（默认 0.42）时仍选最高分模板，但 hint/recipe 偏保守。
+- `answerHint` / `intent` / `finalTopK` / `perQueryK` **始终**来自模板；规划 LLM 只填 `denseQueries` + `keywords`。
+- 分低于 `BLUELAMP_TEMPLATE_SCORE_MIN`（默认 0.42）时仍选最高分模板 id，但 hint/recipe 偏保守（fallback 文案）。
 - 实现：`query-templates.ts`、`template-router.ts`；plan 回传 `templateId` / `templateScore`。
+
+---
+
+## 2.2 分层查询构建（核心方法）
+
+本系统不把「查询改写」做成单次 LLM 黑盒，而是用模板把检索拆成 **四级可控策略**。每一级职责不同、失败面独立。
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ L1 意图形状（问法）                                           │
+│    exemplar 相似度 → templateId / intent                    │
+├─────────────────────────────────────────────────────────────┤
+│ L2 模板策略（任务级）                                         │
+│    queryRecipe · answerHint · finalTopK / perQueryK         │
+├─────────────────────────────────────────────────────────────┤
+│ L3 多路查询实例（本次问题）                                    │
+│    规划 LLM → denseQueries[]（+ keywords 仅观测）             │
+├─────────────────────────────────────────────────────────────┤
+│ L4 检索执行与召回深度                                         │
+│    每路 perQueryK → 合并去重 → 全局 finalTopK → 生成         │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### L1 — 意图形状路由（embedding，非 LLM）
+
+| 项 | 说明 |
+|----|------|
+| 输入 | 用户当前问句 |
+| 方法 | 问句 embed ↔ 各模板 exemplar embed，模板内取 max，全局取最高 |
+| 输出 | `templateId`、`templateScore`、matched exemplar |
+| 为何不用 LLM 分类 | 稳定、快、可复现；exemplar 可随问法扩展而不改模型 |
+| 代码 | `template-router.ts` → `routeQueryTemplate` |
+
+要点：匹配的是 **问法形状**（「有哪些 / 哪一年 / 怎么运作」），不是知识库主题。主题词留给 L3 从原问抽取。
+
+### L2 — 模板绑定的任务级策略（静态配置）
+
+每个 `QueryTemplate` 同时规定三件事：
+
+| 字段 | 作用层级 | 说明 |
+|------|----------|------|
+| `intent` | 生成约束标签 | 写入生成 prompt |
+| `queryRecipe` | **约束规划 LLM** | 告诉 LLM₁ 该生成什么样的 denseQueries（条数倾向、侧面、忌讳） |
+| `answerHint` | **约束生成 LLM** | 强制回答形态（列举须引用来源、事实禁止猜测等） |
+| `finalTopK` / `perQueryK` | **约束召回深度** | 综合题宽、精确题窄 |
+
+这是「不同级别查询方法」的配置面：换模板 = 换一整套检索+生成策略，而无需改编排逻辑。
+
+代码：`query-templates.ts`（`QUERY_TEMPLATES` + `resolveRetrievalTopK`）。
+
+**为何按 templateId 定 topK，而不是粗 intent：**  
+`enumerate` 同时覆盖「盘点来源」与「列实体」；`other` 几乎等于 summarize。`templateId` 粒度更贴任务广度。
+
+| 任务广度 | 模板 | 召回策略 |
+|----------|------|----------|
+| 精确（单点） | fact / locate | 浅：5 / 5，降噪 |
+| 中等（机制/对比） | explain / compare | 中：8–10，覆盖两侧或步骤 |
+| 宽（盘点/列举） | inventory / enumerate | 宽：12 / 8 |
+| 最宽（概览/时间线） | summarize | 最宽：15 / 10 |
+
+### L3 — 多路查询实例化（规划 LLM）
+
+| 项 | 说明 |
+|----|------|
+| 输入 | 当前问 + 裁剪后 history + **已选定模板的 `queryRecipe`** |
+| 输出 | `denseQueries`（1～5）+ `keywords`（观测） |
+| 禁止输出 | `intent` / `answerHint` / 模板英文 id（会 scrub） |
+| 失败回退 | `denseQueries: [原问]`，聊天不中断 |
+
+**多路的含义：** 一条用户问题拆成多条可 embed 的检索句，表达不同侧面，例如：
+
+- 列举人物 → 「具名角色清单」「姓名出现」「某某书中的人物」
+- 对比两者 → 侧 A、侧 B、「区别/对比」
+- 概览/时间线 → 导论、关键事件、结论/年表侧面
+
+规划 LLM **不**自由发明检索策略；它只在模板配方给定的「级别」内填词。这比「整句改写」更可控，也比「单向量硬搜」更能覆盖多维证据。
+
+代码：`query-plan.ts` → `buildRetrievalPlan` / `buildPlanPrompt`。
+
+### L4 — 检索执行与动态召回
+
+```
+for q in denseQueries:
+    hits += searchChunks(q, perQueryK)   # BGE-M3 + QUERY_PREFIX
+merge by chunkId (keep max score)
+sort → slice(0, finalTopK)
+→ citations + 生成上下文
+```
+
+| 参数 | 含义 |
+|------|------|
+| `perQueryK` | 每一路 dense 查询先取多少；过小则多路几乎无增益 |
+| `finalTopK` | 合并后留给 LLM₂ 的条数；决定上下文预算与答案完整度 |
+
+编排：`orchestrator.ask` 调用 `resolveRetrievalTopK(plan.templateId)` 后再 `searchWithQueries`。  
+实现：`retriever.ts` → `searchWithQueries`。
+
+### 层级如何协作（一例）
+
+用户问：「整理中本聪的本体活动时间线」
+
+1. **L1** 问法接近概览/综合 → 常路由至 `summarize_overview`（或 enumerate 类）
+2. **L2** 模板给出宽召回（如 15/10）+ 概览类 `queryRecipe` / `answerHint`
+3. **L3** 规划 LLM 产出多条含「中本聪」及时期/事件侧面的 `denseQueries`
+4. **L4** 多路召回合并后保留更多 chunk，LLM₂ 才有材料排时间线
+
+若同一知识库改问「中本聪白皮书是哪一年发布的」：
+
+1. **L1** → `fact_lookup`
+2. **L2** → topK=5，事实类 hint（不知则说不知）
+3. **L3** → 1～3 条短查询，紧扣年份槽
+4. **L4** → 浅召回，减少噪声段落干扰
+
+**同一套流水线，不同模板 = 不同级别的查询方法。**
+
+### 实现映射
+
+| 层级 | 模块 | 关键符号 |
+|------|------|----------|
+| L1 | `services/retrieval/template-router.ts` | `routeQueryTemplate` |
+| L2 | `services/retrieval/query-templates.ts` | `QUERY_TEMPLATES`, `resolveRetrievalTopK` |
+| L3 | `services/retrieval/query-plan.ts` | `buildRetrievalPlan` |
+| L4 | `services/retrieval/retriever.ts` + `chat/orchestrator.ts` | `searchWithQueries`, `ask` |
+| 生成约束 | `services/generation/*` | prompt 注入 `intent` + `answerHint` |
+
+### 设计取舍（已确认）
+
+| 取舍 | 选择 | 原因 |
+|------|------|------|
+| 分类用 embed exemplar | 是 | 快、稳；主题不进模板 |
+| 规划 LLM 可否改 intent/hint | 否 | 防漂移；策略锁在模板 |
+| topK 全局常数 | 否 | 综合题残缺、事实题过噪 |
+| keywords 参与打分 | 暂否（方案 A） | 先观测再开方案 B |
+| 生成是否吃完整 history | 首版否 | 控上下文；指代已在 L3 消解进 queries |
 
 ---
 
@@ -86,22 +225,26 @@
 sequenceDiagram
     participant UI as Desktop UI
     participant API as rag-server /chat
+    participant Route as Template Router
     participant Plan as LLM₁ Plan
     participant Ret as Retriever
     participant Emb as BGE-M3
     participant Gen as LLM₂ Answer
 
     UI->>API: POST { message, history }
-    API->>Plan: buildRetrievalPlan(message, history)
-    Plan-->>API: RetrievalPlan (JSON)
+    API->>Route: routeQueryTemplate(message)
+    Route-->>API: template + score
+    API->>Plan: buildRetrievalPlan(message, history, template)
+    Plan-->>API: RetrievalPlan (denseQueries)
     Note over API: 校验失败则 fallback 原句
+    Note over API: topK = resolveRetrievalTopK(templateId)
     loop denseQueries
-        API->>Ret: searchChunks(q, 5)
+        API->>Ret: searchChunks(q, perQueryK)
         Ret->>Emb: embedQuery(q)
         Emb-->>Ret: vector
         Ret-->>API: scored chunks
     end
-    API->>API: merge by chunkId (max score) → top 5
+    API->>API: merge by chunkId (max score) → finalTopK
     API->>Gen: generate(originalMessage, plan hints, chunks)
     Gen-->>API: reply
     API-->>UI: { reply, citations, retrievalPlan }
@@ -146,9 +289,10 @@ export interface ChatResult {
 | 字段 | 用途 | 首版执行 |
 |------|------|----------|
 | `intent` | 任务类型 | 写入生成 prompt 约束 |
-| `denseQueries` | 多路向量查询 | 各路检索后合并，最终 topK=**5** |
+| `denseQueries` | 多路向量查询 | 各路检索后合并；最终 topK 按 `templateId` 动态（见 §2.1 / §2.2） |
 | `keywords` | 实体敏感词 | **只记日志 / 回传 plan（方案 A）**，不加分 |
 | `answerHint` | 生成约束文案 | 拼进生成 prompt 头部 |
+| `templateId` | 选中的意图模板 | 决定 recipe / hint / topK；回传便于调试 |
 
 ### 4.3 刻意不做（MVP）
 
@@ -209,35 +353,30 @@ message: 他后来去哪了？
 
 ### 6.1 后端
 
-与生成相同：优先已配置的 Ollama（`BLUELAMP_OLLAMA_URL`，当前 `http://10.0.0.7:11434`）。
+与生成相同：优先已配置的 Ollama（`BLUELAMP_OLLAMA_URL`）。
 
 ### 6.2 输出要求
 
 - 仅 JSON，不回答用户问题
+- 只填 `denseQueries` + `keywords`；`intent` / `answerHint` 由模板强制覆盖
 - `denseQueries`：1～5 条（常用 2～4；列举/对比可到 5）；去寒暄；专名保留；可中英搭配；勿同义凑数
-- `intent=enumerate` 时：至少一条偏「姓名/人物/角色」，避免只生成「筛选流程」类查询
-- `temperature=0`，短 `num_predict`，**独立短超时**（建议 15–30s，与生成超时分离）
+- 遵守模板 `queryRecipe`（条数倾向、侧面、忌讳）
+- `temperature=0`，短 `num_predict`，**独立短超时**（`BLUELAMP_PLAN_TIMEOUT_MS`，默认 30s）
 
 ### 6.3 Fallback
 
 任一步失败（无后端 / 超时 / JSON 无效 / 空 queries）：
 
-```ts
-{
-  intent: 'other',
-  denseQueries: [message],
-  keywords: [],
-  answerHint: '',
-}
-```
-
-行为退化为今日单路检索。
+- 仍尽量保留已路由的模板 meta（若路由成功）
+- `denseQueries` 退化为 `[message]`
+- 行为接近单路检索，但 topK 仍可按 `templateId` 解析
 
 ### 6.4 日志
 
-- `stage: 'query-rewrite'`（或更名 `retrieval-plan`）
+- `stage: 'retrieval-plan'`
 - 记录：完整规划 prompt、解析后的 plan、所用 model/endpoint
-- 现有生成日志继续保留（`stage: 'generation'`）
+- 流水线 timing：`.data/logs/pipeline-timing.jsonl`（含 `templateId`、`finalTopK`、`chunkCount`）
+- 生成日志：`stage: 'generation'`
 
 路径：`.data/logs/llm-queries.jsonl`（已 gitignore）。
 
@@ -245,12 +384,13 @@ message: 他后来去哪了？
 
 ## 7. 检索执行
 
-1. 对 `denseQueries` 每一条调用现有 `searchChunks(q, 5)`（内部仍走 BGE-M3 `QUERY_PREFIX` + cosine）。
-2. 按 `chunkId` 去重，保留最高分。
-3. 全局排序，取 **top 5** 进入生成与 citations。
-4. **不**用 keywords 改分（方案 A）。
+1. `resolveRetrievalTopK(plan.templateId)` 得到 `finalTopK` / `perQueryK`。
+2. 对 `denseQueries` 每一条调用 `searchChunks(q, perQueryK)`（BGE-M3 `QUERY_PREFIX` + cosine）。
+3. 按 `chunkId` 去重，保留最高分。
+4. 全局排序，取 **`finalTopK`** 进入生成与 citations。
+5. **不**用 keywords 改分（方案 A）。
 
-后续可选：RRF 合并、keywords 小幅加分（方案 B）、BM25 混合。
+后续可选：RRF 合并、keywords 小幅加分（方案 B）、BM25 混合、MMR 多样性。
 
 ---
 
@@ -260,7 +400,7 @@ message: 他后来去哪了？
 - 在 RAG instruct / Pleias prompt 头部增加：
   - `intent`
   - `answerHint`（若非空）
-- 资料区为 top5 chunks；引用规则不变。
+- 资料区为 **动态 topK** 条 chunks；引用规则不变。
 - 生成失败时的检索摘要 fallback 逻辑保持不变。
 
 ---
@@ -280,8 +420,8 @@ UI 是否展示 plan：MVP 可不展示，但类型与网络层必须带回，�
 
 ## 10. 与「旧/新答案对比」的关系
 
-此前中本聪人物列举的旧/新差异，**不能**归因于本设计——当时改写链路尚未实现，差异来自问法与生成抽样。  
-本设计落地后，应以 `llm-queries.jsonl` 中的 `retrievalPlan` + `retrieved` 对照评估，再用同一批问题回归。
+评估应以 `llm-queries.jsonl` 中的 `retrievalPlan` + `retrieved`，以及 `pipeline-timing.jsonl` 中的 `templateId` / `finalTopK` / `chunkCount` 对照。  
+同一批问题回归时，关注：事实题是否仍简洁、列举/时间线是否因更大 topK 明显更完整。
 
 ---
 
@@ -289,13 +429,14 @@ UI 是否展示 plan：MVP 可不展示，但类型与网络层必须带回，�
 
 - [x] `packages/core`：Plan / ChatResult 类型
 - [x] `services/retrieval/query-plan.ts`：prompt、调用、解析、fallback
-- [x] `retriever`：`searchWithQueries` 合并 top5
-- [x] `orchestrator.ask(message, history?)` 串起规划→检索→生成
+- [x] `services/retrieval/query-templates.ts` + `template-router.ts`：通用意图模板与路由
+- [x] `retriever`：`searchWithQueries` 合并；topK 由模板 `finalTopK`/`perQueryK` 决定
+- [x] `orchestrator.ask(message, history?)` 串起路由→规划→检索→生成
 - [x] 生成 prompt 注入 `intent` + `answerHint`
 - [x] `POST /chat` 支持 `history`，响应带 `retrievalPlan`
 - [x] Desktop 传 history
-- [x] 规划阶段写入 llm 日志
-- [ ] 手工回归：单轮事实题、列举题、多轮指代题（「他」）
+- [x] 规划阶段写入 llm 日志；timing 记录 topK
+- [ ] 手工回归：单轮事实题、列举题、多轮指代题（「他」）、时间线/概览题
 
 ---
 
@@ -306,6 +447,7 @@ UI 是否展示 plan：MVP 可不展示，但类型与网络层必须带回，�
 3. 检索质量不够再二次规划（adaptive）
 4. history 有限注入生成（摘要后）
 5. UI 展示 retrievalPlan 与检索词，便于用户理解与反馈
+6. 可选 `timeline_rebuild` 模板（exemplar：时间线/年表/活动历程），与 summarize 分离
 
 ---
 
@@ -315,14 +457,15 @@ UI 是否展示 plan：MVP 可不展示，但类型与网络层必须带回，�
 |--------|------|
 | 每问是否规划 | 是；先通用意图模板路由，再窄规划 LLM |
 | keywords | A：仅日志/回传，不打分 |
-| 最终 topK | 5 |
+| 最终 topK | 按 `templateId` 动态（fact/locate=5；explain=8；compare=10；enumerate=12；summarize=15；未知=8） |
 | API 回传 plan | 是（`retrievalPlan`，含 `templateId`/`templateScore`） |
 | intent 集合 | 6 个粗标签 + 7 个通用模板 id |
 | 会话历史 | 需要；规划使用；窗口默认 6 条 / ≤2000 字 |
 | 生成是否用 history | 首版否 |
 | 查询语法 DSL | 不做；用 RetrievalPlan JSON |
 | answerHint | 由模板强制，不依赖规划 LLM 填写 |
+| 分层查询 | L1 路由 → L2 模板策略 → L3 多路实例化 → L4 动态召回（见 §2.2） |
 
 ---
 
-*文档版本：v0.1 · 对应讨论结论 2026-07-28*
+*文档版本：v0.2 · 对应分层查询与动态 topK 2026-07-28*
