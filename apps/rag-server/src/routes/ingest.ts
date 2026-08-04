@@ -10,7 +10,7 @@ import {
   runJob,
 } from '../services/ingestion/job-runner.js';
 import { walkFolder } from '../services/ingestion/folder-walker.js';
-import { subscribeJob } from '../services/ingestion/events.js';
+import { emitJobEvent, subscribeJob } from '../services/ingestion/events.js';
 import { normalizeImportPath } from '../platform/paths.js';
 
 export const ingestRoutes = new Hono();
@@ -47,6 +47,10 @@ ingestRoutes.post('/folder', async (c) => {
     if (j) {
       j.status = 'failed';
       j.finishedAt = new Date().toISOString();
+      emitJobEvent(job.id, {
+        event: 'job_done',
+        data: { stats: j.stats, limitNotice: j.limitNotice },
+      });
     }
   });
 
@@ -87,14 +91,17 @@ ingestRoutes.get('/jobs/:id/stream', (c) => {
   if (!job) return c.json({ error: 'job not found' }, 404);
 
   return streamSSE(c, async (stream) => {
-    const send = (event: string, data: unknown) =>
-      stream.writeSSE({ event, data: JSON.stringify(data) });
+    const send = (event: string, data: unknown) => {
+      void stream.writeSSE({ event, data: JSON.stringify(data) }).catch((err) => {
+        console.warn('[ingest] sse write failed', jobId, event, err);
+      });
+    };
 
     const unsub = subscribeJob(jobId, (evt) => {
       send(evt.event, evt.data);
     });
 
-    await send('job_progress', {
+    send('job_progress', {
       done: job.stats.done + job.stats.failed + job.stats.skipped,
       total: job.stats.total,
     });
@@ -108,13 +115,18 @@ ingestRoutes.get('/jobs/:id/stream', (c) => {
         await stream.sleep(500);
         const current = getJob(jobId);
         if (!current) break;
-        if (current.status === 'completed' || current.status === 'failed' || current.status === 'cancelled') {
+        if (
+          current.status === 'completed' ||
+          current.status === 'failed' ||
+          current.status === 'cancelled'
+        ) {
           break;
         }
       }
+      // Prefer the event emitted by runJob; only send a fallback if needed.
       const final = getJob(jobId);
-      if (final) {
-        await send('job_done', { stats: final.stats, limitNotice: final.limitNotice });
+      if (final && !['pending', 'running'].includes(final.status)) {
+        send('job_done', { stats: final.stats, limitNotice: final.limitNotice });
       }
     } finally {
       clearInterval(heartbeat);

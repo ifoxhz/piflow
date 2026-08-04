@@ -11,10 +11,12 @@ apps/desktop/src-tauri/target/
 # Model weights (keep manifest & README)
 models/Xenova/
 models/Pleias-RAG-1B/
+models/paddleocr/
 models/**/*.onnx
 models/**/*.gguf
 models/**/*.bin
 models/**/*.safetensors
+
 
 # Cache
 .cache/

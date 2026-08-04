@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { AppView, HealthResponse } from '@bluelamp/core';
-import { fetchHealth, sendChatMessage } from './api/rag';
+import { ChatTimeoutError, fetchHealth, sendChatMessage } from './api/rag';
 import { Sidebar } from './components/Sidebar';
 import { WelcomeView } from './components/WelcomeView';
 import { ChatView } from './components/ChatView';
@@ -130,13 +130,15 @@ function App() {
       });
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err);
+      const isTimeout = err instanceof ChatTimeoutError;
       addMessage(sessionId, {
         id: crypto.randomUUID(),
         role: 'assistant',
-        content:
-          `请求失败：${detail}\n\n` +
-          '若提示 Failed to fetch / 网络错误：确认 `pnpm dev:server` 在跑，且 Vite 已重启（代理超时已加长）。' +
-          '问答本身可能需要几十秒到数分钟，请稍候勿重复连点。',
+        content: isTimeout
+          ? detail
+          : `请求失败：${detail}\n\n` +
+            '若提示 Failed to fetch / 网络错误：确认 `pnpm dev:server` 在跑，且 Vite 已重启（代理超时已加长）。' +
+            '问答本身可能需要几十秒到数分钟，请稍候勿重复连点。',
         createdAt: new Date().toISOString(),
       });
     } finally {
@@ -169,7 +171,7 @@ function App() {
             {showWelcome ? (
               <WelcomeView onQuickAction={(prompt) => handleSend(prompt)} />
             ) : (
-              <ChatView messages={messages} />
+              <ChatView messages={messages} isWaiting={sending} />
             )}
             <div className="main-input-area">
               <ChatInput

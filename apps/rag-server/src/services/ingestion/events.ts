@@ -12,7 +12,12 @@ export function subscribeJob(jobId: string, listener: Listener): () => void {
 
 export function emitJobEvent(jobId: string, evt: IngestSseEvent): void {
   for (const fn of listeners.get(jobId) ?? []) {
-    fn(evt);
+    try {
+      fn(evt);
+    } catch (err) {
+      // A broken SSE client must not abort the ingest loop.
+      console.warn('[ingest] job listener failed', jobId, err);
+    }
   }
 }
 

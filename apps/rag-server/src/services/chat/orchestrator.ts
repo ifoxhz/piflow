@@ -137,6 +137,7 @@ export async function ask(
         denseQueryCount: plan.denseQueries.length,
         finalTopK,
         perQueryK,
+        ...(plan.lowConfidence != null ? { lowConfidence: plan.lowConfidence } : {}),
         chunkCount,
         generation: gen,
         ...(error ? { error } : {}),

@@ -50,7 +50,7 @@ export interface ActivityLogEntry {
   id: string;
   jobId: string;
   relativePath: string;
-  status: 'done' | 'skipped' | 'failed';
+  status: 'done' | 'skipped' | 'failed' | 'running';
   summary: string;
   timestamp: string;
 }

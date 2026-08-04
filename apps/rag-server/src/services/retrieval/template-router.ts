@@ -2,8 +2,9 @@ import { embedTexts } from '../ingestion/embedder.js';
 import {
   GENERIC_FALLBACK_TEMPLATE,
   QUERY_TEMPLATES,
+  getTemplateById,
   type QueryTemplate,
-  type QueryTemplateId,
+  type RoutableQueryTemplateId,
 } from './query-templates.js';
 
 /** Below this max exemplar cosine → treat as low confidence / use fallback hint recipe. */
@@ -18,7 +19,7 @@ export interface TemplateRouteResult {
 }
 
 interface ExemplarEntry {
-  templateId: QueryTemplateId;
+  templateId: RoutableQueryTemplateId;
   text: string;
   vector: Float32Array;
 }
@@ -42,11 +43,11 @@ async function ensureIndex(): Promise<ExemplarEntry[]> {
 
   loading = (async () => {
     const texts: string[] = [];
-    const meta: Array<{ templateId: QueryTemplateId; text: string }> = [];
+    const meta: Array<{ templateId: RoutableQueryTemplateId; text: string }> = [];
     for (const t of QUERY_TEMPLATES) {
       for (const ex of t.exemplars) {
         texts.push(ex);
-        meta.push({ templateId: t.id, text: ex });
+        meta.push({ templateId: t.id as RoutableQueryTemplateId, text: ex });
       }
     }
     console.log('[template-router] embedding %d exemplars…', texts.length);
@@ -62,10 +63,6 @@ async function ensureIndex(): Promise<ExemplarEntry[]> {
 
   await loading;
   return index!;
-}
-
-function templateById(id: QueryTemplateId): QueryTemplate {
-  return QUERY_TEMPLATES.find((t) => t.id === id) ?? GENERIC_FALLBACK_TEMPLATE;
 }
 
 /**
@@ -84,7 +81,7 @@ export async function routeQueryTemplate(message: string): Promise<TemplateRoute
   }
 
   const bestByTemplate = new Map<
-    QueryTemplateId,
+    RoutableQueryTemplateId,
     { score: number; exemplar: string }
   >();
 
@@ -96,7 +93,7 @@ export async function routeQueryTemplate(message: string): Promise<TemplateRoute
     }
   }
 
-  let bestId: QueryTemplateId = 'summarize_overview';
+  let bestId: RoutableQueryTemplateId = 'summarize_overview';
   let bestScore = -1;
   let bestExemplar: string | undefined;
   for (const [id, v] of bestByTemplate) {
@@ -108,16 +105,15 @@ export async function routeQueryTemplate(message: string): Promise<TemplateRoute
   }
 
   const lowConfidence = bestScore < SCORE_THRESHOLD;
-  const template = lowConfidence
+  const matched = getTemplateById(bestId);
+  const template: QueryTemplate = lowConfidence
     ? {
-        ...GENERIC_FALLBACK_TEMPLATE,
-        // keep matched id for logging but use safe hint/recipe when low confidence
-        id: bestId,
-        intent: templateById(bestId).intent,
+        ...matched,
+        // Keep matched id for topK / logging; use conservative hint/recipe.
         answerHint: GENERIC_FALLBACK_TEMPLATE.answerHint,
-        queryRecipe: `${templateById(bestId).queryRecipe}（匹配置信度较低，查询务必紧扣原问。）`,
+        queryRecipe: `${matched.queryRecipe}（匹配置信度较低，查询务必紧扣原问。）`,
       }
-    : templateById(bestId);
+    : matched;
 
   console.log(
     `[template-router] id=${bestId} score=${bestScore.toFixed(4)} low=${lowConfidence}` +
