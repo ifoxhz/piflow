@@ -8,7 +8,7 @@
  *   pnpm models:download -- embedding.bge-m3
  */
 import { createWriteStream } from 'node:fs';
-import { mkdir, access, rm } from 'node:fs/promises';
+import { mkdir, access, rm, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pipeline } from 'node:stream/promises';
@@ -33,7 +33,9 @@ interface ModelManifest {
 }
 
 const force = process.argv.includes('--force');
-const filterId = process.argv.find((a) => !a.startsWith('-') && a !== process.argv[1] && a !== process.argv[0]);
+const filterId = process.argv.find(
+  (a) => !a.startsWith('-') && a !== process.argv[1] && a !== process.argv[0],
+);
 
 async function loadManifest(): Promise<ModelManifest> {
   const raw = await import('node:fs/promises').then((fs) =>
@@ -58,7 +60,43 @@ async function downloadFile(url: string, dest: string): Promise<void> {
   if (!res.ok || !res.body) {
     throw new Error(`Download failed: ${res.status} ${url}`);
   }
-  await pipeline(Readable.fromWeb(res.body as import('stream/web').ReadableStream), createWriteStream(dest));
+  await pipeline(
+    Readable.fromWeb(res.body as import('stream/web').ReadableStream),
+    createWriteStream(dest),
+  );
+}
+
+/** Build ppocrv6_dict.txt from official inference.yml (keeps trailing space entry). */
+async function ensurePpocrDictionary(localBase: string): Promise<void> {
+  const ymlPath = path.join(localBase, 'ppocr_v6_small/inference.yml');
+  const dictPath = path.join(localBase, 'ppocr_v6_small/ppocrv6_dict.txt');
+  if (!(await fileExists(ymlPath))) return;
+
+  const yml = await readFile(ymlPath, 'utf-8');
+  const lines = yml.split(/\r?\n/);
+  const start = lines.findIndex((l) => /^\s*character_dict:\s*$/.test(l));
+  if (start < 0) return;
+
+  const chars: string[] = [];
+  for (let i = start + 1; i < lines.length; i++) {
+    const m = lines[i].match(/^\s*-\s+(.*)$/);
+    if (!m) {
+      if (chars.length > 0) break;
+      continue;
+    }
+    let item = m[1].trim();
+    if (
+      (item.startsWith("'") && item.endsWith("'")) ||
+      (item.startsWith('"') && item.endsWith('"'))
+    ) {
+      item = item.slice(1, -1);
+      item = item.replace(/\\'/g, "'").replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+    }
+    chars.push(item);
+  }
+  if (!chars.includes(' ')) chars.push(' ');
+  await writeFile(dictPath, chars.map((c) => `${c}\n`).join(''), 'utf-8');
+  console.log(`  ✓ wrote ppocrv6_dict.txt (${chars.length} entries)`);
 }
 
 async function ensureModel(entry: ModelManifestEntry, mirrorHost: string): Promise<void> {
@@ -89,10 +127,12 @@ async function ensureModel(entry: ModelManifestEntry, mirrorHost: string): Promi
     for (const f of entry.download.files) {
       await downloadFile(f.url, path.join(localBase, f.name));
     }
+    if (entry.id === 'ocr.ppocr-v6-small') {
+      await ensurePpocrDictionary(localBase);
+    }
     return;
   }
 
-  // HuggingFace resolve URLs via mirror
   const hubPath = entry.download.mirror.replace(mirrorHost, '').replace(/^\//, '');
   const repo = hubPath.split('/').slice(0, 2).join('/');
 
@@ -103,7 +143,8 @@ async function ensureModel(entry: ModelManifestEntry, mirrorHost: string): Promi
 }
 
 async function main() {
-  const mirror = process.env.HF_ENDPOINT ?? process.env.BLUELAMP_HF_MIRROR ?? 'https://hf-mirror.com';
+  const mirror =
+    process.env.HF_ENDPOINT ?? process.env.BLUELAMP_HF_MIRROR ?? 'https://hf-mirror.com';
   const host = mirror.endsWith('/') ? mirror.slice(0, -1) : mirror;
   console.log(`[models-ensure] mirror: ${host}`);
 

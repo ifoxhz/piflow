@@ -52,6 +52,8 @@ export interface PipelineTimingEntry {
     finalTopK?: number;
     /** Per dense-query retrieve depth before merge. */
     perQueryK?: number;
+    /** Router score below BLUELAMP_TEMPLATE_SCORE_MIN. */
+    lowConfidence?: boolean;
     chunkCount: number;
     generation?: 'ollama' | 'local-llm' | 'pleias' | 'retrieval-fallback' | 'none';
     error?: string;
@@ -124,6 +126,7 @@ export function logPipelineTiming(entry: PipelineTimingEntry): void {
         ` chunks=${entry.meta.chunkCount} queries=${entry.meta.denseQueryCount}` +
         (entry.meta.finalTopK != null ? ` topK=${entry.meta.finalTopK}` : '') +
         (entry.meta.templateId ? ` template=${entry.meta.templateId}` : '') +
+        (entry.meta.lowConfidence ? ' lowConfidence' : '') +
         (entry.meta.generation ? ` gen=${entry.meta.generation}` : '') +
         ` query=${JSON.stringify(entry.userQuery)}`,
     );

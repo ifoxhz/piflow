@@ -94,6 +94,42 @@
           }
         ]
       }
+    },
+    {
+      "id": "ocr.ppocr-v6-small",
+      "name": "PP-OCRv6 small（扫描 PDF 兜底）",
+      "runtime": "paddleocr.js + onnxruntime-node",
+      "hubId": "PaddlePaddle/PP-OCRv6_small_*_onnx",
+      "localDir": "models/paddleocr",
+      "description": "det+rec+textline_ori；字典需含末尾空格共 18709 项。pdf-oxide 抽字不足时按页 OCR。",
+      "requiredFiles": [
+        "ppocr_v6_small/PP-OCRv6_small_det_infer.onnx",
+        "ppocr_v6_small/PP-OCRv6_small_rec_infer.onnx",
+        "ppocr_v6_small/ppocrv6_dict.txt",
+        "pp_lcnet_x0_25_textline_ori/PP-LCNet_x0_25_textline_ori_infer.onnx"
+      ],
+      "download": {
+        "mirror": "https://hf-mirror.com",
+        "official": "https://huggingface.co",
+        "files": [
+          {
+            "name": "ppocr_v6_small/PP-OCRv6_small_det_infer.onnx",
+            "url": "https://hf-mirror.com/PaddlePaddle/PP-OCRv6_small_det_onnx/resolve/main/inference.onnx"
+          },
+          {
+            "name": "ppocr_v6_small/PP-OCRv6_small_rec_infer.onnx",
+            "url": "https://hf-mirror.com/PaddlePaddle/PP-OCRv6_small_rec_onnx/resolve/main/inference.onnx"
+          },
+          {
+            "name": "pp_lcnet_x0_25_textline_ori/PP-LCNet_x0_25_textline_ori_infer.onnx",
+            "url": "https://hf-mirror.com/PaddlePaddle/PP-LCNet_x0_25_textline_ori_onnx/resolve/main/inference.onnx"
+          },
+          {
+            "name": "ppocr_v6_small/inference.yml",
+            "url": "https://hf-mirror.com/PaddlePaddle/PP-OCRv6_small_rec_onnx/resolve/main/inference.yml"
+          }
+        ]
+      }
     }
   ]
 }

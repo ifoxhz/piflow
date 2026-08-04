@@ -1,9 +1,12 @@
+import { useEffect, useRef } from 'react';
 import type { Message } from '@bluelamp/core';
 import { formatCitationLocation } from '@bluelamp/core';
 import { MarkdownContent } from './MarkdownContent';
 
 interface ChatViewProps {
   messages: Message[];
+  /** True while waiting for the assistant reply. */
+  isWaiting?: boolean;
 }
 
 function PlainTextContent({ content }: { content: string }) {
@@ -19,8 +22,26 @@ function PlainTextContent({ content }: { content: string }) {
   );
 }
 
-export function ChatView({ messages }: ChatViewProps) {
-  if (messages.length === 0) {
+function WaitingIndicator() {
+  return (
+    <div className="message message-assistant" aria-live="polite" aria-busy="true">
+      <div className="message-bubble message-bubble--waiting">
+        <span className="chat-waiting-spinner" aria-hidden />
+        <span className="chat-waiting-label">正在思考…</span>
+      </div>
+    </div>
+  );
+}
+
+export function ChatView({ messages, isWaiting = false }: ChatViewProps) {
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isWaiting && messages.length === 0) return;
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }, [messages.length, isWaiting]);
+
+  if (messages.length === 0 && !isWaiting) {
     return null;
   }
 
@@ -64,6 +85,8 @@ export function ChatView({ messages }: ChatViewProps) {
           </div>
         </div>
       ))}
+      {isWaiting && <WaitingIndicator />}
+      <div ref={bottomRef} />
     </div>
   );
 }

@@ -114,7 +114,7 @@ function extractJsonObject(text: string): unknown {
 }
 
 const TEMPLATE_ID_LEAK =
-  /\b(inventory_sources|enumerate_entities|summarize_overview|fact_lookup|locate_passage|explain_how|compare_two)\b/gi;
+  /\b(inventory_sources|enumerate_entities|summarize_overview|fact_lookup|locate_passage|explain_how|compare_two|generic_fallback)\b/gi;
 
 function scrubDenseQuery(q: string): string {
   return q.replace(TEMPLATE_ID_LEAK, ' ').replace(/\s+/g, ' ').trim();
@@ -125,6 +125,7 @@ function normalizePlanFromLlm(
   message: string,
   template: QueryTemplate,
   templateScore: number,
+  lowConfidence: boolean,
 ): RetrievalPlan {
   const base: RetrievalPlan = {
     intent: template.intent,
@@ -133,6 +134,7 @@ function normalizePlanFromLlm(
     answerHint: template.answerHint,
     templateId: template.id,
     templateScore: Number(templateScore.toFixed(4)),
+    lowConfidence,
   };
 
   if (!raw || typeof raw !== 'object') return base;
@@ -179,6 +181,7 @@ export async function buildRetrievalPlan(
     answerHint: template.answerHint || plan.answerHint,
     templateId: template.id,
     templateScore: Number(score.toFixed(4)),
+    lowConfidence,
   });
 
   if (!isOllamaConfigured()) {
@@ -208,7 +211,13 @@ export async function buildRetrievalPlan(
     });
     const planLlmMs = elapsedMs(planLlmStarted);
 
-    const plan = normalizePlanFromLlm(extractJsonObject(raw), message, template, score);
+    const plan = normalizePlanFromLlm(
+      extractJsonObject(raw),
+      message,
+      template,
+      score,
+      lowConfidence,
+    );
     logLlmQueryInput({
       ts: new Date().toISOString(),
       stage: 'retrieval-plan',
@@ -226,6 +235,7 @@ export async function buildRetrievalPlan(
     });
     console.log(
       `[query-plan] template=${plan.templateId} intent=${plan.intent}` +
+        ` lowConfidence=${lowConfidence}` +
         ` queries=${JSON.stringify(plan.denseQueries)} keywords=${JSON.stringify(plan.keywords)}` +
         ` route=${templateRouteMs}ms planLlm=${planLlmMs}ms`,
     );

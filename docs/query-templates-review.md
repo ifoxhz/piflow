@@ -1,26 +1,45 @@
 # query-templates.ts 审阅与优化建议
 
+## 落地裁决（2026-07-29）
+
+对照实现后的结论与已落地项（**不要按未纠偏的原文改代码**）：
+
+| # | 原建议 | 裁决 | 落地 |
+|---|--------|------|------|
+| 1 | fallback 独立 ID | **部分同意**；「低置信度混入 summarize 统计」不准确——低置信度路径会覆盖为 `bestId`。独立 ID 用于真·无向量/未知模板可观测 | `generic_fallback`；plan/timing 增加 `lowConfidence` |
+| 2 | `satisfies` Record | **同意**；fallback **不入** exemplar 索引 | `QUERY_TEMPLATE_MAP` + `ROUTABLE_QUERY_TEMPLATE_MAP` |
+| 3 | summarize intent | **同意** | `RetrievalIntent` 增加 `summarize` |
+| 4 | compare 多侧 | **同意** | hint/recipe 文案已放宽 |
+| 5 | inventory vs locate exemplars | **同意但不完整** | 已补 locate/inventory；**另修** inventory vs enumerate（蔡司「功能列表」串话） |
+| 6 | topK 注释 | **同意动机**；**反对**伪造「2025-Q3 eval」 | 注释锚定 `docs/reRAG.md` §2.1 |
+| 7 | 双语 hint/recipe | **暂缓** | 未做 |
+
+**评审缺口已补：** 「有哪些功能/能力」→ 偏 `inventory_sources`；`enumerate_entities` 收窄为具名实体，recipe 禁止扩写成泛 AI 工具清单。
+
+---
+
 ## 能力概述
 
-`query-templates.ts` 是一个 RAG 检索路由系统的**模板注册表**，为七种问题意图各提供一套执行参数。
+`query-templates.ts` 是一个 RAG 检索路由系统的**模板注册表**，为七种可路由问题意图各提供一套执行参数（另加不可路由的 `generic_fallback`）。
 
 | 模板 ID | 典型问题形态 | finalTopK |
 |---|---|---|
-| `inventory_sources` | 哪些文档讲了 X | 12 |
-| `enumerate_entities` | 文中有哪些人/概念 | 12 |
+| `inventory_sources` | 哪些文档讲了 X / 产品有哪些功能 | 12 |
+| `enumerate_entities` | 文中有哪些人/具名对象 | 12 |
 | `summarize_overview` | 总结这份材料 | 15 |
 | `fact_lookup` | X 是哪年/谁/多少 | 5 |
 | `locate_passage` | 这段话在哪一节 | 5 |
 | `explain_how` | 这个机制怎么运作 | 8 |
 | `compare_two` | 这两种做法有何区别 | 10 |
+| `generic_fallback` | 无向量/未知 id（不参与 exemplar 路由） | 8 |
 
-每个模板挂载三样东西：
+每个可路由模板挂载三样东西：
 
 - **exemplars** — 用于路由器做 embedding 相似度匹配
 - **queryRecipe** — 给 planning LLM 生成 denseQueries 的指令
 - **answerHint** — 约束 answer LLM 的生成行为
 
-另有一个 `GENERIC_FALLBACK_TEMPLATE` 和 `resolveRetrievalTopK()` 工具函数。
+另有 `resolveRetrievalTopK()` / `getTemplateById()` 工具函数。
 
 ---
 

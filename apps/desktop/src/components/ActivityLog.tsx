@@ -8,6 +8,8 @@ function icon(status: ActivityLogEntry['status']) {
       return '⊘';
     case 'failed':
       return '✗';
+    case 'running':
+      return '⋯';
   }
 }
 

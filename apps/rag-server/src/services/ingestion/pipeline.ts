@@ -9,9 +9,10 @@ import {
   insertChunk,
   insertDocument,
 } from '../../db.js';
+import { EMBED_FLUSH_SIZE } from './config.js';
 import { embedTexts } from './embedder.js';
 import { parseNativeFile, titleFromPath } from './parsers/native.js';
-import { parsePdfPages } from './parsers/pdf.js';
+import { parsePdfForIngest } from './parsers/pdf.js';
 
 export interface ProcessFileResult {
   status: 'done' | 'skipped' | 'failed';
@@ -66,10 +67,10 @@ export async function processFile(file: IngestFileTask): Promise<ProcessFileResu
 
   try {
     const st = await stat(file.absolutePath);
-    const mtimeMs = st.mtimeMs;
+    const mtimeMs = Math.trunc(st.mtimeMs);
     const existing = findDocumentByPath(file.absolutePath);
 
-    if (existing && existing.mtime_ms === mtimeMs) {
+    if (existing && Math.trunc(existing.mtime_ms) === mtimeMs) {
       return { status: 'skipped', skipReason: 'unchanged' };
     }
 
@@ -78,9 +79,9 @@ export async function processFile(file: IngestFileTask): Promise<ProcessFileResu
     let backend: ParserBackend = 'native';
 
     if (ext === '.pdf') {
-      backend = 'pdf-oxide';
-      const pages = await parsePdfPages(file.absolutePath);
-      indexed = chunkPdfPages(pages, backend);
+      const parsed = await parsePdfForIngest(file.absolutePath);
+      backend = parsed.backend;
+      indexed = chunkPdfPages(parsed.pages, backend);
     } else {
       const text = await parseNativeFile(file.absolutePath);
       indexed = chunkNativeText(text, backend);
@@ -90,7 +91,12 @@ export async function processFile(file: IngestFileTask): Promise<ProcessFileResu
       return { status: 'skipped', skipReason: 'empty content' };
     }
 
-    const embeddings = await embedTexts(indexed.map((piece) => piece.content));
+    const fileLabel = path.basename(file.absolutePath);
+    const flushSize = Math.max(1, EMBED_FLUSH_SIZE);
+    console.log(
+      `[ingest] ${fileLabel}: ${indexed.length} chunks → embed+index (flush every ${flushSize})`,
+    );
+
     const documentId = existing?.id ?? randomUUID();
     const now = new Date().toISOString();
 
@@ -110,11 +116,36 @@ export async function processFile(file: IngestFileTask): Promise<ProcessFileResu
       updated_at: now,
     });
 
-    for (let i = 0; i < indexed.length; i++) {
-      const { content, metadata } = indexed[i];
-      const embedding = embeddings[i];
-      const buf = Buffer.from(embedding.buffer, embedding.byteOffset, embedding.byteLength);
-      insertChunk(randomUUID(), documentId, content, JSON.stringify(metadata), buf);
+    // Embed+write in small flushes so vectors/text can be GC'd (avoids RSS climb on 1k+ chunks).
+    for (let offset = 0; offset < indexed.length; offset += flushSize) {
+      const end = Math.min(offset + flushSize, indexed.length);
+      const slice = indexed.slice(offset, end);
+      const embeddings = await embedTexts(
+        slice.map((piece) => piece.content),
+        {
+          label: fileLabel,
+          progressBase: offset,
+          progressTotal: indexed.length,
+        },
+      );
+
+      for (let j = 0; j < slice.length; j++) {
+        const { content, metadata } = slice[j];
+        const embedding = embeddings[j];
+        const buf = Buffer.from(
+          embedding.buffer,
+          embedding.byteOffset,
+          embedding.byteLength,
+        );
+        insertChunk(randomUUID(), documentId, content, JSON.stringify(metadata), buf);
+        // Release chunk text + vector refs for this flush.
+        slice[j].content = '';
+        indexed[offset + j].content = '';
+      }
+      embeddings.length = 0;
+
+      console.log(`[ingest] indexed ${end}/${indexed.length} chunks (${fileLabel})`);
+      await new Promise<void>((r) => setImmediate(r));
     }
 
     return { status: 'done', chunkCount: indexed.length };

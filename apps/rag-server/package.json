@@ -14,7 +14,10 @@
     "@huggingface/transformers": "^3.5.2",
     "better-sqlite3": "^11.10.0",
     "hono": "^4.7.10",
+    "mupdf": "^1.28.0",
     "node-llama-cpp": "^3.19.0",
+    "onnxruntime-node": "1.21.0",
+    "paddleocr": "^1.2.0",
     "pdf-oxide": "^0.3.38"
   },
   "devDependencies": {

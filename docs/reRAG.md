@@ -69,19 +69,21 @@
 
 | templateId | 用途 | intent | finalTopK | perQueryK |
 |------------|------|--------|----------:|----------:|
-| `inventory_sources` | 有哪些材料/章节讲了某主题 | enumerate | 12 | 8 |
+| `inventory_sources` | 有哪些材料/章节/产品功能 | enumerate | 12 | 8 |
 | `enumerate_entities` | 多少/哪些具名实体 | enumerate | 12 | 8 |
-| `summarize_overview` | 总结/概览/时间线类综合 | other | 15 | 10 |
+| `summarize_overview` | 总结/概览/时间线类综合 | summarize | 15 | 10 |
 | `fact_lookup` | 单点事实 | fact | 5 | 5 |
 | `locate_passage` | 定位出处 | locate | 5 | 5 |
 | `explain_how` | 机制/原因 | explain | 8 | 6 |
-| `compare_two` | 对比 | compare | 10 | 6 |
-| （未知 / 无 plan） | 默认 | — | 8 | 6 |
+| `compare_two` | 对比（可多于两侧） | compare | 10 | 6 |
+| `generic_fallback` | embed 失败 / 未知 id（不入 exemplar 索引） | other | 8 | 6 |
+| （无 plan / 未知） | 默认 topK | — | 8 | 6 |
 
 - exemplar **禁止**写死当前知识库主题（如某书、某技术名）；主题只从当次用户输入抽取。
 - `answerHint` / `intent` / `finalTopK` / `perQueryK` **始终**来自模板；规划 LLM 只填 `denseQueries` + `keywords`。
-- 分低于 `BLUELAMP_TEMPLATE_SCORE_MIN`（默认 0.42）时仍选最高分模板 id，但 hint/recipe 偏保守（fallback 文案）。
-- 实现：`query-templates.ts`、`template-router.ts`；plan 回传 `templateId` / `templateScore`。
+- 分低于 `BLUELAMP_TEMPLATE_SCORE_MIN`（默认 0.42）时仍选最高分模板 id，但 hint/recipe 偏保守；plan 回传 `lowConfidence: true`。
+- 「有哪些功能/能力/模块」优先 `inventory_sources`，勿与 `enumerate_entities`（具名人物/对象）混淆。
+- 实现：`query-templates.ts`、`template-router.ts`；plan 回传 `templateId` / `templateScore` / `lowConfidence`。
 
 ---
 
@@ -111,7 +113,7 @@
 |----|------|
 | 输入 | 用户当前问句 |
 | 方法 | 问句 embed ↔ 各模板 exemplar embed，模板内取 max，全局取最高 |
-| 输出 | `templateId`、`templateScore`、matched exemplar |
+| 输出 | `templateId`、`templateScore`、`lowConfidence`、matched exemplar |
 | 为何不用 LLM 分类 | 稳定、快、可复现；exemplar 可随问法扩展而不改模型 |
 | 代码 | `template-router.ts` → `routeQueryTemplate` |
 
@@ -133,7 +135,7 @@
 代码：`query-templates.ts`（`QUERY_TEMPLATES` + `resolveRetrievalTopK`）。
 
 **为何按 templateId 定 topK，而不是粗 intent：**  
-`enumerate` 同时覆盖「盘点来源」与「列实体」；`other` 几乎等于 summarize。`templateId` 粒度更贴任务广度。
+`enumerate` 同时覆盖「盘点来源/功能」与「列实体」；`summarize` 对应概览。`templateId` 粒度更贴任务广度。
 
 | 任务广度 | 模板 | 召回策略 |
 |----------|------|----------|
@@ -263,6 +265,7 @@ export type RetrievalIntent =
   | 'explain'    // 解释过程、原因
   | 'compare'    // 对比
   | 'locate'     // 找原文、出处
+  | 'summarize'  // 总结 / 概览
   | 'other';
 
 export interface RetrievalPlan {
@@ -275,6 +278,8 @@ export interface RetrievalPlan {
   answerHint: string;
   templateId?: string;
   templateScore?: number;
+  /** 路由分低于阈值时 true（保守 hint/recipe） */
+  lowConfidence?: boolean;
 }
 
 export interface ChatResult {
@@ -293,6 +298,7 @@ export interface ChatResult {
 | `keywords` | 实体敏感词 | **只记日志 / 回传 plan（方案 A）**，不加分 |
 | `answerHint` | 生成约束文案 | 拼进生成 prompt 头部 |
 | `templateId` | 选中的意图模板 | 决定 recipe / hint / topK；回传便于调试 |
+| `lowConfidence` | 路由低置信度 | 观测保守 hint 占比；仍用 bestId 的 topK |
 
 ### 4.3 刻意不做（MVP）
 
@@ -459,13 +465,14 @@ UI 是否展示 plan：MVP 可不展示，但类型与网络层必须带回，�
 | keywords | A：仅日志/回传，不打分 |
 | 最终 topK | 按 `templateId` 动态（fact/locate=5；explain=8；compare=10；enumerate=12；summarize=15；未知=8） |
 | API 回传 plan | 是（`retrievalPlan`，含 `templateId`/`templateScore`） |
-| intent 集合 | 6 个粗标签 + 7 个通用模板 id |
+| intent 集合 | 7 个粗标签（含 summarize）+ 7 个可路由模板 id + `generic_fallback` |
 | 会话历史 | 需要；规划使用；窗口默认 6 条 / ≤2000 字 |
 | 生成是否用 history | 首版否 |
 | 查询语法 DSL | 不做；用 RetrievalPlan JSON |
 | answerHint | 由模板强制，不依赖规划 LLM 填写 |
 | 分层查询 | L1 路由 → L2 模板策略 → L3 多路实例化 → L4 动态召回（见 §2.2） |
+| lowConfidence | plan/timing 回传；低分时保留 bestId，换保守 hint/recipe |
 
 ---
 
-*文档版本：v0.2 · 对应分层查询与动态 topK 2026-07-28*
+*文档版本：v0.3 · 模板裁决与 inventory/enumerate 分流 2026-07-29*

@@ -51,6 +51,7 @@ export async function runJob(jobId: string): Promise<void> {
     }
 
     if (file.status === 'skipped' && file.skipReason) {
+      file.completedAt = file.completedAt ?? new Date().toISOString();
       emitJobEvent(jobId, {
         event: 'file_skipped',
         data: { fileId: file.id, relativePath: file.relativePath, reason: file.skipReason },

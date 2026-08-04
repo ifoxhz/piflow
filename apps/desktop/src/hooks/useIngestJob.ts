@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { ActivityLogEntry, IngestJob } from '@bluelamp/core';
+import type { ActivityLogEntry, IngestFileTask, IngestJob } from '@bluelamp/core';
 import {
   fetchIngestJob,
   formatLogEntry,
@@ -8,7 +8,33 @@ import {
 } from '../api/ingest';
 
 const MAX_LOG_LINES = 200;
-const POLL_MS = 10_000;
+const POLL_MS = 5_000;
+
+function patchFile(
+  files: IngestFileTask[],
+  fileId: string,
+  patch: Partial<IngestFileTask>,
+): IngestFileTask[] {
+  return files.map((f) => (f.id === fileId ? { ...f, ...patch } : f));
+}
+
+function recomputeClientStats(files: IngestFileTask[], prev: IngestJob['stats']): IngestJob['stats'] {
+  const done = files.filter((f) => f.status === 'done').length;
+  const failed = files.filter((f) => f.status === 'failed').length;
+  const skipped = files.filter((f) => f.status === 'skipped').length;
+  const pending = files.filter(
+    (f) => !['done', 'failed', 'skipped'].includes(f.status),
+  ).length;
+  const chunksIndexed = files.reduce((s, f) => s + (f.chunkCount ?? 0), 0);
+  return {
+    total: prev.total || files.length,
+    pending,
+    done,
+    failed,
+    skipped,
+    chunksIndexed,
+  };
+}
 
 export function useIngestJob(onComplete?: () => void) {
   const [job, setJob] = useState<IngestJob | null>(null);
@@ -18,10 +44,24 @@ export function useIngestJob(onComplete?: () => void) {
   const seenFileIds = useRef(new Set<string>());
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const unsubRef = useRef<(() => void) | null>(null);
+  const completedRef = useRef(false);
 
   const appendLog = useCallback((entry: ActivityLogEntry) => {
     setActivityLog((prev) => [...prev.slice(-(MAX_LOG_LINES - 1)), entry]);
   }, []);
+
+  const finishImport = useCallback(() => {
+    if (completedRef.current) return;
+    completedRef.current = true;
+    setImporting(false);
+    unsubRef.current?.();
+    unsubRef.current = null;
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+    onComplete?.();
+  }, [onComplete]);
 
   const handleTerminalEvent = useCallback(
     (jobId: string, event: string, data: Record<string, unknown>) => {
@@ -30,9 +70,50 @@ export function useIngestJob(onComplete?: () => void) {
       if (fileId) seenFileIds.current.add(fileId);
 
       const entry = formatLogEntry(jobId, event, data);
-      if (entry) appendLog(entry);
+      if (entry) {
+        setActivityLog((prev) => {
+          const withoutRunning = prev.filter(
+            (e) => !(e.status === 'running' && e.relativePath === entry.relativePath),
+          );
+          return [...withoutRunning.slice(-(MAX_LOG_LINES - 1)), entry];
+        });
+      }
+
+      if (!fileId) return;
+
+      setJob((prev) => {
+        if (!prev || prev.id !== jobId) return prev;
+        let files = prev.files;
+        if (event === 'file_done') {
+          files = patchFile(files, fileId, {
+            status: 'done',
+            chunkCount: Number(data.chunkCount ?? 0),
+            completedAt: new Date().toISOString(),
+          });
+        } else if (event === 'file_skipped') {
+          files = patchFile(files, fileId, {
+            status: 'skipped',
+            skipReason: String(data.reason ?? 'skipped'),
+            completedAt: new Date().toISOString(),
+          });
+        } else if (event === 'file_failed') {
+          files = patchFile(files, fileId, {
+            status: 'failed',
+            error: String(data.error ?? 'failed'),
+            completedAt: new Date().toISOString(),
+          });
+        } else {
+          return prev;
+        }
+        return {
+          ...prev,
+          currentFileId: undefined,
+          files,
+          stats: recomputeClientStats(files, prev.stats),
+        };
+      });
     },
-    [appendLog],
+    [],
   );
 
   const stopTracking = useCallback(() => {
@@ -85,15 +166,13 @@ export function useIngestJob(onComplete?: () => void) {
           }
         }
         if (['completed', 'failed', 'cancelled'].includes(j.status)) {
-          setImporting(false);
-          stopTracking();
-          onComplete?.();
+          finishImport();
         }
       } catch {
         /* ignore poll errors */
       }
     },
-    [appendLog, onComplete, stopTracking],
+    [appendLog, finishImport],
   );
 
   const startImport = useCallback(
@@ -101,6 +180,7 @@ export function useIngestJob(onComplete?: () => void) {
       setError(null);
       setActivityLog([]);
       seenFileIds.current.clear();
+      completedRef.current = false;
       stopTracking();
 
       try {
@@ -122,19 +202,40 @@ export function useIngestJob(onComplete?: () => void) {
         unsubRef.current = subscribeIngestJob(
           jobId,
           (event, data) => {
-            if (event === 'job_progress' || event === 'heartbeat') return;
+            if (event === 'heartbeat') return;
             if (event === 'job_done') {
-              setImporting(false);
-              stopTracking();
-              onComplete?.();
+              void pollJob(jobId).finally(() => finishImport());
+              return;
+            }
+            if (event === 'job_progress') {
               return;
             }
             if (event === 'file_started') {
-              setJob((prev) =>
-                prev
-                  ? { ...prev, currentFileId: String(data.fileId) }
-                  : prev,
-              );
+              const fileId = String(data.fileId ?? '');
+              const relativePath = String(data.relativePath ?? '');
+              setJob((prev) => {
+                if (!prev || prev.id !== jobId) return prev;
+                const files = fileId
+                  ? patchFile(prev.files, fileId, { status: 'parsing' })
+                  : prev.files;
+                return { ...prev, currentFileId: fileId || prev.currentFileId, files };
+              });
+              if (relativePath) {
+                setActivityLog((prev) => {
+                  const withoutOldRunning = prev.filter((e) => e.status !== 'running');
+                  return [
+                    ...withoutOldRunning.slice(-(MAX_LOG_LINES - 1)),
+                    {
+                      id: crypto.randomUUID(),
+                      jobId,
+                      relativePath,
+                      status: 'running' as const,
+                      summary: 'processing…',
+                      timestamp: new Date().toISOString(),
+                    },
+                  ];
+                });
+              }
               return;
             }
             handleTerminalEvent(jobId, event, data);
@@ -161,7 +262,7 @@ export function useIngestJob(onComplete?: () => void) {
         stopTracking();
       }
     },
-    [appendLog, handleTerminalEvent, onComplete, pollJob, stopTracking],
+    [appendLog, finishImport, handleTerminalEvent, pollJob, stopTracking],
   );
 
   useEffect(() => () => stopTracking(), [stopTracking]);

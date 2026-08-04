@@ -1,4 +1,4 @@
-export type ParserBackend = 'native' | 'pdf-oxide' | 'docling';
+export type ParserBackend = 'native' | 'pdf-oxide' | 'pp-ocr' | 'docling';
 
 export type AppView = 'welcome' | 'chat' | 'knowledge' | 'settings';
 
@@ -67,6 +67,7 @@ export type RetrievalIntent =
   | 'explain'
   | 'compare'
   | 'locate'
+  | 'summarize'
   | 'other';
 
 /** Structured plan produced before vector search. */
@@ -82,6 +83,8 @@ export interface RetrievalPlan {
   templateId?: string;
   /** Cosine score of best exemplar match for templateId. */
   templateScore?: number;
+  /** True when exemplar match was below BLUELAMP_TEMPLATE_SCORE_MIN (conservative hint/recipe). */
+  lowConfidence?: boolean;
 }
 
 export interface ChatHistoryMessage {

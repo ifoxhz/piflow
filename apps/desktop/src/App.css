@@ -376,6 +376,44 @@ input {
   border-bottom-left-radius: 4px;
 }
 
+.message-bubble--waiting {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 20px;
+  padding-top: 14px;
+  padding-bottom: 14px;
+}
+
+.chat-waiting-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #d2d2d7;
+  border-top-color: #6e6e73;
+  border-radius: 50%;
+  animation: chat-waiting-spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+.chat-waiting-label {
+  font-size: 14px;
+  color: #6e6e73;
+}
+
+@keyframes chat-waiting-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-waiting-spinner {
+    animation: none;
+    border-top-color: #d2d2d7;
+    border-right-color: #6e6e73;
+  }
+}
+
 .markdown-content > :first-child {
   margin-top: 0;
 }
@@ -897,6 +935,31 @@ input {
 .status-failed .activity-log-path,
 .status-failed .activity-log-summary {
   color: #ff3b30;
+}
+
+.status-running .activity-log-summary {
+  color: #6e6e73;
+}
+
+.status-running .activity-log-icon {
+  animation: activity-running-pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes activity-running-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .status-running .activity-log-icon {
+    animation: none;
+    opacity: 0.7;
+  }
 }
 
 .btn-secondary {
