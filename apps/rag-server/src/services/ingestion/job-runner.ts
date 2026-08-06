@@ -1,10 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import type { IngestJob, IngestJobStats } from '@bluelamp/core';
 import { emitJobEvent, clearJobListeners } from './events.js';
+import { estimateIngestFile, estimateRemainingEmbed } from './estimate.js';
 import { processFile } from './pipeline.js';
 
 const activeJobs = new Map<string, IngestJob>();
 let runningJobId: string | null = null;
+/** When current file began embedding (for live ETA). */
+const embedStartedAt = new Map<string, number>();
 
 export function getActiveJobId(): string | null {
   return runningJobId;
@@ -65,10 +68,26 @@ export async function runJob(jobId: string): Promise<void> {
     job.currentFileId = file.id;
     file.status = 'parsing';
     file.startedAt = new Date().toISOString();
+    embedStartedAt.delete(file.id);
+
+    const estimate = await estimateIngestFile(file.absolutePath, file.mimeType);
+    file.estimatedPages = estimate.pages;
+    file.estimatedChunks = estimate.estimatedChunks;
+    file.etaLabel = estimate.label;
+    console.log(
+      `[ingest] estimate ${file.relativePath}: pages=${estimate.pages ?? '?'} ` +
+        `chunks≈${estimate.estimatedChunks} eta=${estimate.label}`,
+    );
 
     emitJobEvent(jobId, {
       event: 'file_started',
-      data: { fileId: file.id, relativePath: file.relativePath },
+      data: {
+        fileId: file.id,
+        relativePath: file.relativePath,
+        estimatedPages: estimate.pages,
+        estimatedChunks: estimate.estimatedChunks,
+        etaLabel: estimate.label,
+      },
     });
 
     emitJobEvent(jobId, {
@@ -80,8 +99,38 @@ export async function runJob(jobId: string): Promise<void> {
       },
     });
 
-    const result = await processFile(file);
+    const result = await processFile(file, {
+      onChunkProgress: (done, total) => {
+        file.status = 'embedding';
+        file.chunksDone = done;
+        file.chunksTotal = total;
+        if (!embedStartedAt.has(file.id) && done > 0) {
+          embedStartedAt.set(file.id, Date.now());
+        }
+        const remaining = estimateRemainingEmbed(done, total, embedStartedAt.get(file.id));
+        file.etaLabel = remaining.label;
+        // Live job-level count: finished files + in-progress file.
+        const finishedChunks = job.files
+          .filter((f) => f.id !== file.id && f.status === 'done')
+          .reduce((s, f) => s + (f.chunkCount ?? 0), 0);
+        job.stats = {
+          ...recomputeStats(job),
+          chunksIndexed: finishedChunks + done,
+        };
+        emitJobEvent(jobId, {
+          event: 'file_chunk_progress',
+          data: {
+            fileId: file.id,
+            relativePath: file.relativePath,
+            done,
+            total,
+            etaLabel: remaining.label,
+          },
+        });
+      },
+    });
     file.completedAt = new Date().toISOString();
+    embedStartedAt.delete(file.id);
 
     if (result.status === 'done') {
       file.status = 'done';

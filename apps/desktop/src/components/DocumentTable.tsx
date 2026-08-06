@@ -76,6 +76,25 @@ export function IngestProgressBar({ job, importing }: IngestProgressBarProps) {
   const total = job.stats.total || 1;
   const pct = Math.round((done / total) * 100);
   const current = job.files.find((f) => f.id === job.currentFileId);
+  const chunkDone = current?.chunksDone;
+  const chunkTotal = current?.chunksTotal;
+  const showChunks =
+    current != null &&
+    chunkTotal != null &&
+    chunkTotal > 0 &&
+    (current.status === 'embedding' ||
+      current.status === 'indexing' ||
+      current.status === 'chunking' ||
+      chunkDone != null);
+
+  const etaBits: string[] = [];
+  if (current?.etaLabel) etaBits.push(current.etaLabel);
+  if (current?.estimatedPages != null && !showChunks) {
+    etaBits.push(`${current.estimatedPages} 页`);
+  }
+  if (!showChunks && current?.estimatedChunks != null) {
+    etaBits.push(`约 ${current.estimatedChunks} 块`);
+  }
 
   return (
     <div className="ingest-progress">
@@ -83,8 +102,24 @@ export function IngestProgressBar({ job, importing }: IngestProgressBarProps) {
         <div className="ingest-progress-fill" style={{ width: `${pct}%` }} />
       </div>
       <div className="ingest-progress-text">
-        {done} / {total} files
-        {current && <span className="ingest-current"> — Processing: {current.relativePath}</span>}
+        <span>
+          {done} / {total} files
+          {current && (
+            <span className="ingest-current"> — Processing: {current.relativePath}</span>
+          )}
+        </span>
+        <span className="ingest-progress-right">
+          {showChunks && (
+            <span className="ingest-chunk-count" title="Chunks indexed for current file">
+              {chunkDone ?? 0} / {chunkTotal} chunks
+            </span>
+          )}
+          {etaBits.length > 0 && (
+            <span className="ingest-eta" title="Estimated time for current file">
+              {etaBits.join(' · ')}
+            </span>
+          )}
+        </span>
       </div>
     </div>
   );

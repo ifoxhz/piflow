@@ -21,6 +21,14 @@ export interface ProcessFileResult {
   error?: string;
 }
 
+export interface ProcessFileOptions {
+  /**
+   * Called after parse (0/total), during embed (live worker ticks),
+   * and after each chunk is inserted.
+   */
+  onChunkProgress?: (done: number, total: number) => void;
+}
+
 interface IndexedPiece {
   content: string;
   metadata: ChunkMetadata;
@@ -60,7 +68,10 @@ function chunkPdfPages(
   return indexed;
 }
 
-export async function processFile(file: IngestFileTask): Promise<ProcessFileResult> {
+export async function processFile(
+  file: IngestFileTask,
+  options: ProcessFileOptions = {},
+): Promise<ProcessFileResult> {
   if (file.status === 'skipped') {
     return { status: 'skipped', skipReason: file.skipReason ?? 'skipped' };
   }
@@ -96,6 +107,7 @@ export async function processFile(file: IngestFileTask): Promise<ProcessFileResu
     console.log(
       `[ingest] ${fileLabel}: ${indexed.length} chunks → embed+index (flush every ${flushSize})`,
     );
+    options.onChunkProgress?.(0, indexed.length);
 
     const documentId = existing?.id ?? randomUUID();
     const now = new Date().toISOString();
@@ -126,6 +138,7 @@ export async function processFile(file: IngestFileTask): Promise<ProcessFileResu
           label: fileLabel,
           progressBase: offset,
           progressTotal: indexed.length,
+          onProgress: (done, total) => options.onChunkProgress?.(done, total),
         },
       );
 
@@ -142,6 +155,8 @@ export async function processFile(file: IngestFileTask): Promise<ProcessFileResu
         slice[j].content = '';
         indexed[offset + j].content = '';
       }
+      // Confirm indexed count after flush (may already match live embed ticks).
+      options.onChunkProgress?.(end, indexed.length);
       embeddings.length = 0;
 
       console.log(`[ingest] indexed ${end}/${indexed.length} chunks (${fileLabel})`);

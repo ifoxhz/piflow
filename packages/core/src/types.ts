@@ -136,3 +136,15 @@ export interface HealthResponse {
     missingFiles?: string[];
   }>;
 }
+
+/** Runtime Ollama generation settings (rag-server). */
+export interface OllamaConfig {
+  url: string;
+  model: string;
+  modelZh: string;
+}
+
+export interface OllamaConfigResponse extends OllamaConfig {
+  configured: boolean;
+  reachable: boolean;
+}

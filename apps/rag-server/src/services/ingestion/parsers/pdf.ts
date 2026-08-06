@@ -7,8 +7,6 @@ import {
   PDF_OCR_ENABLED,
   PDF_OCR_MIN_CHARS,
 } from '../config.js';
-import { ocrPageImage } from './pp-ocr.js';
-
 export interface PdfPageText {
   page: number;
   text: string;
@@ -86,6 +84,7 @@ export async function parsePdfForIngest(filePath: string): Promise<ParsePdfResul
     `[ingest] pdf-oxide weak/empty on ${weakPages.length}/${pageCount} pages → PP-OCR @ ${PDF_OCR_DPI} DPI`,
   );
 
+  const { ocrPageImage } = await import('./pp-ocr.js');
   const buf = await readFile(filePath);
   const ocrDoc = mupdf.Document.openDocument(buf, 'application/pdf');
   let ocrUsed = 0;

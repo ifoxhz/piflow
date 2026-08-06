@@ -35,12 +35,20 @@ export interface PipelineTimingEntry {
   ms: {
     /** Template exemplar routing (embed), only when planning on. */
     templateRoute?: number;
+    /** Cold-start: embed all template exemplars (0 when warm). */
+    exemplarIndex?: number;
+    /** Embed user query for template routing. */
+    routeQueryEmbed?: number;
     /** Planning LLM call, only when planning on. */
     planLlm?: number;
     /** Full plan step (route + planLlm, or ~0 when planning off). */
     plan: number;
     /** Dense vector search (one or multi query). */
     retrieve: number;
+    /** Query embedding inside retrieve. */
+    retrieveEmbed?: number;
+    /** Cosine scan / merge inside retrieve. */
+    retrieveScore?: number;
     /** Answer generation LLM (absent if skipped / no backend). */
     generate?: number;
     total: number;
@@ -116,8 +124,12 @@ export function logPipelineTiming(entry: PipelineTimingEntry): void {
     const parts = [
       `plan=${ms.plan}ms`,
       ms.templateRoute != null ? `route=${ms.templateRoute}ms` : null,
+      ms.exemplarIndex != null ? `exemplarIndex=${ms.exemplarIndex}ms` : null,
+      ms.routeQueryEmbed != null ? `routeQueryEmbed=${ms.routeQueryEmbed}ms` : null,
       ms.planLlm != null ? `planLlm=${ms.planLlm}ms` : null,
       `retrieve=${ms.retrieve}ms`,
+      ms.retrieveEmbed != null ? `retrieveEmbed=${ms.retrieveEmbed}ms` : null,
+      ms.retrieveScore != null ? `retrieveScore=${ms.retrieveScore}ms` : null,
       ms.generate != null ? `generate=${ms.generate}ms` : null,
       `total=${ms.total}ms`,
     ].filter(Boolean);

@@ -134,6 +134,7 @@ docs/             Architecture docs and ADRs (in Chinese)
 - [Retrieval quality upgrade](docs/retrieval-quality-upgrade.md) — hybrid retrieval & RRF fusion (proposal)
 - [Knowledge base folder import](docs/knowledge-base-import.md)
 - [WSL development guide](docs/development-wsl.md)
+- [Windows build & run checklist](docs/development-windows.md)
 - ADRs: [001 Tauri + Sidecar](docs/adr/001-tauri-sidecar.md) · [002 Document parsing](docs/adr/002-document-parsing.md) · [003 Model management](docs/adr/003-model-management.md) · [004 WSL dev / macOS release](docs/adr/004-wsl-dev-macos-release.md)
 
 ## Roadmap

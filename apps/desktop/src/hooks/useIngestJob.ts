@@ -88,6 +88,8 @@ export function useIngestJob(onComplete?: () => void) {
           files = patchFile(files, fileId, {
             status: 'done',
             chunkCount: Number(data.chunkCount ?? 0),
+            chunksDone: Number(data.chunkCount ?? 0),
+            chunksTotal: Number(data.chunkCount ?? 0),
             completedAt: new Date().toISOString(),
           });
         } else if (event === 'file_skipped') {
@@ -210,15 +212,34 @@ export function useIngestJob(onComplete?: () => void) {
             if (event === 'job_progress') {
               return;
             }
-            if (event === 'file_started') {
+            if (event === 'file_chunk_progress') {
               const fileId = String(data.fileId ?? '');
+              const done = Number(data.done ?? 0);
+              const total = Number(data.total ?? 0);
               const relativePath = String(data.relativePath ?? '');
+              const etaLabel =
+                typeof data.etaLabel === 'string' ? data.etaLabel : undefined;
+              if (!fileId) return;
               setJob((prev) => {
                 if (!prev || prev.id !== jobId) return prev;
-                const files = fileId
-                  ? patchFile(prev.files, fileId, { status: 'parsing' })
-                  : prev.files;
-                return { ...prev, currentFileId: fileId || prev.currentFileId, files };
+                const files = patchFile(prev.files, fileId, {
+                  status: 'embedding',
+                  chunksDone: done,
+                  chunksTotal: total,
+                  ...(etaLabel ? { etaLabel } : {}),
+                });
+                const finishedChunks = files
+                  .filter((f) => f.id !== fileId && f.status === 'done')
+                  .reduce((s, f) => s + (f.chunkCount ?? 0), 0);
+                return {
+                  ...prev,
+                  currentFileId: fileId,
+                  files,
+                  stats: {
+                    ...recomputeClientStats(files, prev.stats),
+                    chunksIndexed: finishedChunks + done,
+                  },
+                };
               });
               if (relativePath) {
                 setActivityLog((prev) => {
@@ -230,7 +251,53 @@ export function useIngestJob(onComplete?: () => void) {
                       jobId,
                       relativePath,
                       status: 'running' as const,
-                      summary: 'processing…',
+                      summary: etaLabel
+                        ? `indexing ${done}/${total} chunks · ${etaLabel}`
+                        : `indexing ${done}/${total} chunks`,
+                      timestamp: new Date().toISOString(),
+                    },
+                  ];
+                });
+              }
+              return;
+            }
+            if (event === 'file_started') {
+              const fileId = String(data.fileId ?? '');
+              const relativePath = String(data.relativePath ?? '');
+              const estimatedPages =
+                typeof data.estimatedPages === 'number' ? data.estimatedPages : undefined;
+              const estimatedChunks =
+                typeof data.estimatedChunks === 'number' ? data.estimatedChunks : undefined;
+              const etaLabel =
+                typeof data.etaLabel === 'string' ? data.etaLabel : undefined;
+              setJob((prev) => {
+                if (!prev || prev.id !== jobId) return prev;
+                const files = fileId
+                  ? patchFile(prev.files, fileId, {
+                      status: 'parsing',
+                      estimatedPages,
+                      estimatedChunks,
+                      etaLabel,
+                    })
+                  : prev.files;
+                return { ...prev, currentFileId: fileId || prev.currentFileId, files };
+              });
+              if (relativePath) {
+                const bits = [
+                  etaLabel,
+                  estimatedPages != null ? `${estimatedPages} 页` : null,
+                  estimatedChunks != null ? `约 ${estimatedChunks} 块` : null,
+                ].filter(Boolean);
+                setActivityLog((prev) => {
+                  const withoutOldRunning = prev.filter((e) => e.status !== 'running');
+                  return [
+                    ...withoutOldRunning.slice(-(MAX_LOG_LINES - 1)),
+                    {
+                      id: crypto.randomUUID(),
+                      jobId,
+                      relativePath,
+                      status: 'running' as const,
+                      summary: bits.length > 0 ? bits.join(' · ') : 'processing…',
                       timestamp: new Date().toISOString(),
                     },
                   ];
@@ -254,7 +321,7 @@ export function useIngestJob(onComplete?: () => void) {
         const msg = e instanceof Error ? e.message : String(e);
         if (msg === 'Failed to fetch') {
           setError(
-            'Cannot reach RAG server. Ensure pnpm dev:server is running, then refresh the page.',
+            'Cannot reach RAG server. If you installed the app, restart it; in development run pnpm dev:server, then refresh.',
           );
         } else {
           setError(msg);

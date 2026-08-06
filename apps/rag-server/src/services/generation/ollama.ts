@@ -1,22 +1,22 @@
 import type { ScoredChunk } from '../retrieval/retriever.js';
 import { logLlmQueryInput, summarizeChunksForLog } from '../chat/llm-query-log.js';
+import { getOllamaRuntimeConfig } from './ollama-config.js';
 import { isChineseQuery, isPleiasModelName } from './language.js';
 import { buildPleiasPrompt, parsePleiasOutput } from './pleias-prompt.js';
 import { buildRagInstructPrompt, type RagPromptOptions } from './rag-instruct-prompt.js';
 
-const DEFAULT_OLLAMA_URL = 'http://10.0.0.7:11434';
 const GENERATION_TIMEOUT_MS = Number(process.env.BLUELAMP_CHAT_TIMEOUT_MS ?? 180_000);
 
 export function getOllamaUrl(): string {
-  return (process.env.BLUELAMP_OLLAMA_URL ?? DEFAULT_OLLAMA_URL).replace(/\/$/, '');
+  return getOllamaRuntimeConfig().url;
 }
 
 function getOllamaModel(): string {
-  return process.env.BLUELAMP_OLLAMA_MODEL ?? 'qwen3.5:4b';
+  return getOllamaRuntimeConfig().model;
 }
 
 function getChineseOllamaModel(): string | undefined {
-  const m = process.env.BLUELAMP_OLLAMA_MODEL_ZH?.trim();
+  const m = getOllamaRuntimeConfig().modelZh.trim();
   return m || undefined;
 }
 
@@ -27,7 +27,7 @@ export function resolveOllamaModel(query: string): string {
 }
 
 export function isOllamaConfigured(): boolean {
-  return Boolean(process.env.BLUELAMP_OLLAMA_URL?.trim());
+  return Boolean(getOllamaRuntimeConfig().url);
 }
 
 async function ollamaGenerate(
@@ -174,8 +174,10 @@ export async function generateViaOllama(
 }
 
 export async function checkOllamaHealth(): Promise<boolean> {
+  const base = getOllamaUrl();
+  if (!base) return false;
   try {
-    const res = await fetch(`${getOllamaUrl()}/api/tags`, { signal: AbortSignal.timeout(5000) });
+    const res = await fetch(`${base}/api/tags`, { signal: AbortSignal.timeout(5000) });
     return res.ok;
   } catch {
     return false;

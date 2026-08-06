@@ -2,9 +2,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { access } from 'node:fs/promises';
 import type { HealthResponse } from '@bluelamp/core';
-import { getRepoRoot } from './platform/paths.js';
-
-const REPO_ROOT = getRepoRoot();
+import { getModelsDir, getRepoRoot } from './platform/paths.js';
 
 export interface ModelManifestEntry {
   id: string;
@@ -21,10 +19,28 @@ export interface ModelManifest {
   models: ModelManifestEntry[];
 }
 
+/** Resolve model files relative to BLUELAMP_MODELS_DIR (or repo models/). */
+function resolveModelBase(localDir: string): string {
+  const modelsDir = getModelsDir();
+  const stripped = localDir.replace(/^models[\\/]/, '');
+  return path.join(modelsDir, stripped);
+}
+
 export async function loadManifest(): Promise<ModelManifest> {
-  const manifestPath = path.join(REPO_ROOT, 'models/manifest.json');
-  const raw = await readFile(manifestPath, 'utf-8');
-  return JSON.parse(raw) as ModelManifest;
+  const candidates = [
+    path.join(getModelsDir(), 'manifest.json'),
+    path.join(getRepoRoot(), 'models/manifest.json'),
+  ];
+  let lastErr: unknown;
+  for (const manifestPath of candidates) {
+    try {
+      const raw = await readFile(manifestPath, 'utf-8');
+      return JSON.parse(raw) as ModelManifest;
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error('models/manifest.json not found');
 }
 
 export async function validateModel(entry: ModelManifestEntry): Promise<{
@@ -32,7 +48,7 @@ export async function validateModel(entry: ModelManifestEntry): Promise<{
   missingFiles: string[];
 }> {
   const missingFiles: string[] = [];
-  const base = path.join(REPO_ROOT, entry.localDir);
+  const base = resolveModelBase(entry.localDir);
 
   for (const file of entry.requiredFiles) {
     const filePath = path.join(base, file);

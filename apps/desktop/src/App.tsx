@@ -58,7 +58,9 @@ function App() {
       setHealthError(null);
     } catch {
       setHealth(null);
-      setHealthError('Cannot reach RAG server at http://127.0.0.1:3847');
+      setHealthError(
+        'Cannot reach RAG server at http://127.0.0.1:3847 (sidecar starting or not running)',
+      );
     }
   }, []);
 

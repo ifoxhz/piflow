@@ -104,6 +104,7 @@ export function subscribeIngestJob(
 
   const events = [
     'file_started',
+    'file_chunk_progress',
     'file_done',
     'file_skipped',
     'file_failed',

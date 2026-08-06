@@ -1,5 +1,4 @@
 import path from 'node:path';
-import { getLlama, LlamaChatSession, QwenChatWrapper } from 'node-llama-cpp';
 import { getModelsDir } from '../../platform/paths.js';
 import { logLlmQueryInput, summarizeChunksForLog } from '../chat/llm-query-log.js';
 import type { ScoredChunk } from '../retrieval/retriever.js';
@@ -11,8 +10,10 @@ export const DEFAULT_QWEN_GGUF = 'Qwen2.5-3B-Instruct/qwen2.5-3b-instruct-q4_k_m
 const GENERATION_TIMEOUT_MS = Number(process.env.BLUELAMP_CHAT_TIMEOUT_MS ?? 180_000);
 const CONTEXT_SIZE = Number(process.env.BLUELAMP_LOCAL_LLM_CONTEXT ?? 8192);
 
-let session: LlamaChatSession | null = null;
-let loading: Promise<LlamaChatSession> | null = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let session: any = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let loading: Promise<any> | null = null;
 
 export function isLocalLlmConfigured(): boolean {
   return process.env.BLUELAMP_USE_LOCAL_LLM === 'true';
@@ -30,11 +31,12 @@ function resolveModelPath(): string {
   return path.join(getModelsDir(), DEFAULT_QWEN_GGUF);
 }
 
-async function ensureSession(): Promise<LlamaChatSession> {
+async function ensureSession() {
   if (session) return session;
   if (loading) return loading;
 
   loading = (async () => {
+    const { getLlama, LlamaChatSession, QwenChatWrapper } = await import('node-llama-cpp');
     const modelPath = resolveModelPath();
     console.log('[local-llm] loading Qwen GGUF from', modelPath);
     const llama = await getLlama();

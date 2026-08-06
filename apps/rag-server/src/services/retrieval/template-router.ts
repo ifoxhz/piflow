@@ -1,3 +1,4 @@
+import { elapsedMs, nowMs } from '../chat/llm-query-log.js';
 import { embedTexts } from '../ingestion/embedder.js';
 import {
   GENERIC_FALLBACK_TEMPLATE,
@@ -16,6 +17,10 @@ export interface TemplateRouteResult {
   /** Best matching exemplar text (for logs). */
   matchedExemplar?: string;
   lowConfidence: boolean;
+  /** Cold-start: embed all template exemplars (0 when index already warm). */
+  exemplarIndexMs: number;
+  /** Embed the user query for cosine routing. */
+  queryEmbedMs: number;
 }
 
 interface ExemplarEntry {
@@ -34,13 +39,15 @@ function cosineSimilarity(a: Float32Array, b: Float32Array): number {
   return dot;
 }
 
-async function ensureIndex(): Promise<ExemplarEntry[]> {
-  if (index) return index;
+async function ensureIndex(): Promise<{ entries: ExemplarEntry[]; buildMs: number }> {
+  if (index) return { entries: index, buildMs: 0 };
   if (loading) {
+    const t0 = nowMs();
     await loading;
-    return index!;
+    return { entries: index!, buildMs: elapsedMs(t0) };
   }
 
+  const buildStarted = nowMs();
   loading = (async () => {
     const texts: string[] = [];
     const meta: Array<{ templateId: RoutableQueryTemplateId; text: string }> = [];
@@ -52,17 +59,22 @@ async function ensureIndex(): Promise<ExemplarEntry[]> {
     }
     console.log('[template-router] embedding %d exemplars…', texts.length);
     // No QUERY_PREFIX: question–question intent match, not passage retrieval.
-    const vectors = await embedTexts(texts);
+    const vectors = await embedTexts(texts, { label: 'template-exemplars' });
     index = meta.map((m, i) => ({
       templateId: m.templateId,
       text: m.text,
       vector: vectors[i]!,
     }));
-    console.log('[template-router] ready (%d templates)', QUERY_TEMPLATES.length);
+    console.log(
+      '[template-router] ready (%d templates, %d exemplars, %dms)',
+      QUERY_TEMPLATES.length,
+      texts.length,
+      elapsedMs(buildStarted),
+    );
   })();
 
   await loading;
-  return index!;
+  return { entries: index!, buildMs: elapsedMs(buildStarted) };
 }
 
 /**
@@ -70,13 +82,17 @@ async function ensureIndex(): Promise<ExemplarEntry[]> {
  * against exemplar question shapes (max score per template).
  */
 export async function routeQueryTemplate(message: string): Promise<TemplateRouteResult> {
-  const entries = await ensureIndex();
-  const [queryVec] = await embedTexts([message.trim()]);
+  const { entries, buildMs: exemplarIndexMs } = await ensureIndex();
+  const queryEmbedStarted = nowMs();
+  const [queryVec] = await embedTexts([message.trim()], { label: 'template-route-query' });
+  const queryEmbedMs = elapsedMs(queryEmbedStarted);
   if (!queryVec) {
     return {
       template: GENERIC_FALLBACK_TEMPLATE,
       score: 0,
       lowConfidence: true,
+      exemplarIndexMs,
+      queryEmbedMs,
     };
   }
 
@@ -117,6 +133,7 @@ export async function routeQueryTemplate(message: string): Promise<TemplateRoute
 
   console.log(
     `[template-router] id=${bestId} score=${bestScore.toFixed(4)} low=${lowConfidence}` +
+      ` exemplarIndex=${exemplarIndexMs}ms queryEmbed=${queryEmbedMs}ms` +
       (bestExemplar ? ` exemplar=${JSON.stringify(bestExemplar)}` : ''),
   );
 
@@ -125,5 +142,7 @@ export async function routeQueryTemplate(message: string): Promise<TemplateRoute
     score: bestScore,
     matchedExemplar: bestExemplar,
     lowConfidence,
+    exemplarIndexMs,
+    queryEmbedMs,
   };
 }

@@ -27,7 +27,15 @@ export interface IngestFileTask {
   status: FileTaskStatus;
   error?: string;
   skipReason?: string;
+  /** Final indexed chunk count when status is done. */
   chunkCount?: number;
+  /** Live embed progress for the current file. */
+  chunksDone?: number;
+  chunksTotal?: number;
+  /** Pre-parse estimate (pages / chunks / ETA label). */
+  estimatedPages?: number;
+  estimatedChunks?: number;
+  etaLabel?: string;
   startedAt?: string;
   completedAt?: string;
 }
@@ -73,7 +81,26 @@ export interface IngestFolderResponse {
 }
 
 export type IngestSseEvent =
-  | { event: 'file_started'; data: { fileId: string; relativePath: string } }
+  | {
+      event: 'file_started';
+      data: {
+        fileId: string;
+        relativePath: string;
+        estimatedPages?: number;
+        estimatedChunks?: number;
+        etaLabel?: string;
+      };
+    }
+  | {
+      event: 'file_chunk_progress';
+      data: {
+        fileId: string;
+        relativePath: string;
+        done: number;
+        total: number;
+        etaLabel?: string;
+      };
+    }
   | { event: 'file_done'; data: { fileId: string; relativePath: string; chunkCount: number } }
   | { event: 'file_skipped'; data: { fileId: string; relativePath: string; reason: string } }
   | { event: 'file_failed'; data: { fileId: string; relativePath: string; error: string } }

@@ -1,10 +1,17 @@
 import type { Citation, ChunkMetadata } from '@bluelamp/core';
 import { truncateCitationQuote } from '@bluelamp/core';
 import { listSearchableChunks, type StoredChunkRow } from '../../db.js';
+import { elapsedMs, nowMs } from '../chat/llm-query-log.js';
 import { embedQuery } from '../ingestion/embedder.js';
 
 const DEFAULT_TOP_K = 5;
 const CITATION_QUOTE_MAX_CHARS = 280;
+
+export interface RetrieveTiming {
+  chunks: ScoredChunk[];
+  embedMs: number;
+  scoreMs: number;
+}
 
 export interface ScoredChunk {
   chunkId: string;
@@ -49,18 +56,27 @@ function toScored(row: StoredChunkRow, score: number): ScoredChunk {
   };
 }
 
-export async function searchChunks(query: string, topK = DEFAULT_TOP_K): Promise<ScoredChunk[]> {
+export async function searchChunks(
+  query: string,
+  topK = DEFAULT_TOP_K,
+): Promise<RetrieveTiming> {
   const rows = listSearchableChunks();
-  if (rows.length === 0) return [];
+  if (rows.length === 0) return { chunks: [], embedMs: 0, scoreMs: 0 };
 
+  const embedStarted = nowMs();
   const queryVec = await embedQuery(query);
+  const embedMs = elapsedMs(embedStarted);
+
+  const scoreStarted = nowMs();
   const scored = rows.map((row) => ({
     row,
     score: cosineSimilarity(queryVec, blobToFloat32(row.embedding)),
   }));
 
   scored.sort((a, b) => b.score - a.score);
-  return scored.slice(0, topK).map(({ row, score }) => toScored(row, score));
+  const chunks = scored.slice(0, topK).map(({ row, score }) => toScored(row, score));
+  const scoreMs = elapsedMs(scoreStarted);
+  return { chunks, embedMs, scoreMs };
 }
 
 /**
@@ -71,20 +87,25 @@ export async function searchWithQueries(
   queries: string[],
   topK = DEFAULT_TOP_K,
   perQueryK = DEFAULT_TOP_K,
-): Promise<ScoredChunk[]> {
+): Promise<RetrieveTiming> {
   const unique = [...new Set(queries.map((q) => q.trim()).filter(Boolean))];
-  if (unique.length === 0) return [];
+  if (unique.length === 0) return { chunks: [], embedMs: 0, scoreMs: 0 };
 
   const merged = new Map<string, ScoredChunk>();
+  let embedMs = 0;
+  let scoreMs = 0;
   for (const q of unique) {
     const hits = await searchChunks(q, perQueryK);
-    for (const hit of hits) {
+    embedMs += hits.embedMs;
+    scoreMs += hits.scoreMs;
+    for (const hit of hits.chunks) {
       const prev = merged.get(hit.chunkId);
       if (!prev || hit.score > prev.score) merged.set(hit.chunkId, hit);
     }
   }
 
-  return [...merged.values()].sort((a, b) => b.score - a.score).slice(0, topK);
+  const chunks = [...merged.values()].sort((a, b) => b.score - a.score).slice(0, topK);
+  return { chunks, embedMs, scoreMs };
 }
 
 export function toCitations(chunks: ScoredChunk[]): Citation[] {

@@ -132,6 +132,7 @@ docs/             架构文档与 ADR
 - [检索质量升级](docs/retrieval-quality-upgrade.md) — 混合检索与 RRF 融合（提案）
 - [知识库目录导入](docs/knowledge-base-import.md)
 - [WSL 开发指南](docs/development-wsl.md)
+- [Windows 编译与运行清单](docs/development-windows.md)
 - ADR：[001 Tauri + Sidecar](docs/adr/001-tauri-sidecar.md) · [002 文档解析](docs/adr/002-document-parsing.md) · [003 模型管理](docs/adr/003-model-management.md) · [004 WSL 开发 / macOS 发布](docs/adr/004-wsl-dev-macos-release.md)
 
 ## 路线图

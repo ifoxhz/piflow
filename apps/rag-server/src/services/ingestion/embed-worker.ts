@@ -2,8 +2,8 @@
  * Dedicated thread for BGE-M3 embedding so the HTTP server stays responsive.
  * Messages: { type:'embed', id, texts, progressBase?, progressTotal? } → progress / result / error
  */
+import path from 'node:path';
 import { parentPort, workerData } from 'node:worker_threads';
-import { env, pipeline } from '@huggingface/transformers';
 
 type WorkerInit = {
   modelsDir: string;
@@ -22,16 +22,48 @@ type EmbedRequest = {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let extractor: any = null;
+let onnxPathPatched = false;
+
+/**
+ * transformers.js joins local model paths with `/`. On Windows, onnxruntime then
+ * opens `\\?\D:\...\models/Xenova/...` which fails; backslash-only extended paths work.
+ * Must patch BEFORE importing @huggingface/transformers (it captures Session.create).
+ */
+async function patchOnnxRuntimePaths(): Promise<void> {
+  if (onnxPathPatched || process.platform !== 'win32') return;
+  onnxPathPatched = true;
+  try {
+    const ort = await import('onnxruntime-node');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const Session = ort.InferenceSession as any;
+    const orig = Session.create.bind(Session);
+    Session.create = (modelPath: unknown, ...rest: unknown[]) => {
+      if (typeof modelPath === 'string') {
+        let p = modelPath;
+        if (p.startsWith('\\\\?\\')) p = p.slice(4);
+        modelPath = path.normalize(p.replace(/\//g, path.sep));
+      }
+      return orig(modelPath, ...rest);
+    };
+  } catch (err) {
+    console.warn(
+      '[embed-worker] onnx path patch skipped:',
+      err instanceof Error ? err.message : err,
+    );
+  }
+}
 
 async function ensureEmbedder(): Promise<void> {
   if (extractor) return;
+  await patchOnnxRuntimePaths();
+  const { env, pipeline } = await import('@huggingface/transformers');
   const init = workerData as WorkerInit;
   const host = init.hfHost.endsWith('/') ? init.hfHost : `${init.hfHost}/`;
   env.remoteHost = host;
   env.allowLocalModels = true;
-  env.localModelPath = init.modelsDir;
+  env.localModelPath = path.resolve(init.modelsDir);
   env.allowRemoteModels = false;
-  console.log('[embed-worker] loading BGE-M3 from', init.modelsDir);
+  console.log('[embed-worker] loading BGE-M3 from', env.localModelPath);
   extractor = await pipeline('feature-extraction', 'Xenova/bge-m3', { dtype: 'fp16' });
   console.log('[embed-worker] ready');
 }

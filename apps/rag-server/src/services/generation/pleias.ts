@@ -1,5 +1,4 @@
 import path from 'node:path';
-import { getLlama, LlamaCompletion } from 'node-llama-cpp';
 import { getModelsDir } from '../../platform/paths.js';
 import { logLlmQueryInput, summarizeChunksForLog } from '../chat/llm-query-log.js';
 import type { ScoredChunk } from '../retrieval/retriever.js';
@@ -8,14 +7,17 @@ import type { RagPromptOptions } from './rag-instruct-prompt.js';
 
 const GENERATION_TIMEOUT_MS = Number(process.env.BLUELAMP_CHAT_TIMEOUT_MS ?? 120_000);
 
-let completion: LlamaCompletion | null = null;
-let loading: Promise<LlamaCompletion> | null = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let completion: any = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let loading: Promise<any> | null = null;
 
-async function ensureCompletion(): Promise<LlamaCompletion> {
+async function ensureCompletion() {
   if (completion) return completion;
   if (loading) return loading;
 
   loading = (async () => {
+    const { getLlama, LlamaCompletion } = await import('node-llama-cpp');
     const modelPath = path.join(getModelsDir(), 'Pleias-RAG-1B', 'Pleias-RAG-1B.gguf');
     console.log('[pleias] loading model from', modelPath);
     const llama = await getLlama();
