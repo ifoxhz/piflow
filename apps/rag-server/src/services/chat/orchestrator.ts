@@ -92,9 +92,13 @@ export async function ask(
 
   const totalStarted = nowMs();
   let templateRouteMs: number | undefined;
+  let exemplarIndexMs: number | undefined;
+  let routeQueryEmbedMs: number | undefined;
   let planLlmMs: number | undefined;
   let planMs = 0;
   let retrieveMs = 0;
+  let retrieveEmbedMs: number | undefined;
+  let retrieveScoreMs: number | undefined;
   let generateMs: number | undefined;
   let generation: PipelineTimingEntry['meta']['generation'];
   let error: string | undefined;
@@ -105,6 +109,8 @@ export async function ask(
     const built = await buildRetrievalPlan(query, history);
     plan = built.plan;
     templateRouteMs = built.timing.templateRouteMs;
+    exemplarIndexMs = built.timing.exemplarIndexMs;
+    routeQueryEmbedMs = built.timing.queryEmbedMs;
     planLlmMs = built.timing.planLlmMs;
   } else {
     plan = fallbackPlan(query);
@@ -113,9 +119,12 @@ export async function ask(
 
   const { finalTopK, perQueryK } = resolveRetrievalTopK(plan.templateId);
   const retrieveStarted = nowMs();
-  const chunks = usePlan
+  const retrieved = usePlan
     ? await searchWithQueries(plan.denseQueries, finalTopK, perQueryK)
     : await searchChunks(query, finalTopK);
+  const chunks = retrieved.chunks;
+  retrieveEmbedMs = retrieved.embedMs;
+  retrieveScoreMs = retrieved.scoreMs;
   retrieveMs = elapsedMs(retrieveStarted);
 
   const finishTiming = (chunkCount: number, gen?: PipelineTimingEntry['meta']['generation']) => {
@@ -126,9 +135,13 @@ export async function ask(
       useRetrievalPlan: usePlan,
       ms: {
         ...(templateRouteMs != null ? { templateRoute: templateRouteMs } : {}),
+        ...(exemplarIndexMs != null ? { exemplarIndex: exemplarIndexMs } : {}),
+        ...(routeQueryEmbedMs != null ? { routeQueryEmbed: routeQueryEmbedMs } : {}),
         ...(planLlmMs != null ? { planLlm: planLlmMs } : {}),
         plan: planMs,
         retrieve: retrieveMs,
+        ...(retrieveEmbedMs != null ? { retrieveEmbed: retrieveEmbedMs } : {}),
+        ...(retrieveScoreMs != null ? { retrieveScore: retrieveScoreMs } : {}),
         ...(generateMs != null ? { generate: generateMs } : {}),
         total: elapsedMs(totalStarted),
       },
@@ -158,7 +171,15 @@ export async function ask(
   if (!useGenerationBackend()) {
     generation = 'none';
     finishTiming(chunks.length, generation);
-    return { reply: buildRetrievalAnswer(query, chunks), citations, retrievalPlan: plan };
+    return {
+      reply: buildRetrievalAnswer(
+        query,
+        chunks,
+        '未配置 Ollama，以下为知识库检索摘要（未经 LLM 整理）：',
+      ),
+      citations,
+      retrievalPlan: plan,
+    };
   }
 
   const genStarted = nowMs();

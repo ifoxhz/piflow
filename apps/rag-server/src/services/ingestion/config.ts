@@ -21,7 +21,8 @@ export const EMBED_BATCH_SIZE = 8;
  * How many chunks to embed+insert before dropping vectors from memory.
  * Keeps peak RSS flat on large OCR'd books.
  */
-export const EMBED_FLUSH_SIZE = Number(process.env.BLUELAMP_EMBED_FLUSH_SIZE ?? 32);
+/** Smaller flushes → more frequent index commits + steadier UI without changing embed cost much. */
+export const EMBED_FLUSH_SIZE = Number(process.env.BLUELAMP_EMBED_FLUSH_SIZE ?? 16);
 
 /** When pdf-oxide extracts too little text, fall back to Node PP-OCR (ONNX). */
 export const PDF_OCR_ENABLED = process.env.BLUELAMP_PDF_OCR !== '0';

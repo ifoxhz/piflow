@@ -6,19 +6,23 @@ import { getModelsDir } from '../../platform/paths.js';
 export const QUERY_PREFIX =
   'Represent this sentence for searching relevant passages: ';
 
-const PROGRESS_EVERY = Number(process.env.BLUELAMP_EMBED_PROGRESS_EVERY ?? 10);
+/** UI/SSE cadence: 1 ≈ every chunk (~2s on CPU) for continuous progress. */
+const PROGRESS_EVERY = Number(process.env.BLUELAMP_EMBED_PROGRESS_EVERY ?? 1);
 
 export type EmbedOptions = {
   label?: string;
   /** Absolute index offset when embedding a slice of a larger job. */
   progressBase?: number;
   progressTotal?: number;
+  /** Live embed progress (absolute done/total); fires before vectors are returned. */
+  onProgress?: (done: number, total: number) => void;
 };
 
 type Pending = {
   resolve: (vectors: Float32Array[]) => void;
   reject: (err: Error) => void;
   label?: string;
+  onProgress?: (done: number, total: number) => void;
 };
 
 let worker: Worker | null = null;
@@ -71,6 +75,17 @@ function ensureWorker(): Worker {
         console.log(
           `[embedder]${label} ${msg.done}/${msg.total} (${msg.elapsedMs}ms${eta})`,
         );
+        if (
+          job?.onProgress &&
+          typeof msg.done === 'number' &&
+          typeof msg.total === 'number'
+        ) {
+          try {
+            job.onProgress(msg.done, msg.total);
+          } catch (err) {
+            console.error('[embedder] onProgress error', err);
+          }
+        }
         return;
       }
       if (msg.type === 'result' && msg.id != null) {
@@ -116,7 +131,12 @@ function embedViaWorker(texts: string[], options: EmbedOptions = {}): Promise<Fl
   const w = ensureWorker();
   const id = nextId++;
   return new Promise<Float32Array[]>((resolve, reject) => {
-    pending.set(id, { resolve, reject, label: options.label });
+    pending.set(id, {
+      resolve,
+      reject,
+      label: options.label,
+      onProgress: options.onProgress,
+    });
     w.postMessage({
       type: 'embed',
       id,

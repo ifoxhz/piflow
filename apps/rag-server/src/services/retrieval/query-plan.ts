@@ -18,6 +18,10 @@ const MAX_HISTORY_CHARS = 2000;
 
 export interface PlanStepTiming {
   templateRouteMs: number;
+  /** Cold-start exemplar index build (subset of templateRouteMs). */
+  exemplarIndexMs: number;
+  /** User-query embed for routing (subset of templateRouteMs). */
+  queryEmbedMs: number;
   planLlmMs: number;
 }
 
@@ -173,7 +177,8 @@ export async function buildRetrievalPlan(
   const routeStarted = nowMs();
   const routed = await routeQueryTemplate(message);
   const templateRouteMs = elapsedMs(routeStarted);
-  const { template, score, matchedExemplar, lowConfidence } = routed;
+  const { template, score, matchedExemplar, lowConfidence, exemplarIndexMs, queryEmbedMs } =
+    routed;
 
   const attachMeta = (plan: RetrievalPlan): RetrievalPlan => ({
     ...plan,
@@ -193,7 +198,7 @@ export async function buildRetrievalPlan(
         keywords: [],
         answerHint: template.answerHint,
       }),
-      timing: { templateRouteMs, planLlmMs: 0 },
+      timing: { templateRouteMs, exemplarIndexMs, queryEmbedMs, planLlmMs: 0 },
     };
   }
 
@@ -229,7 +234,8 @@ export async function buildRetrievalPlan(
         prompt +
         `\n\n[router] template=${template.id} score=${score.toFixed(4)} lowConfidence=${lowConfidence}` +
         (matchedExemplar ? ` exemplar=${matchedExemplar}` : '') +
-        `\n[timing] route=${templateRouteMs}ms planLlm=${planLlmMs}ms`,
+        `\n[timing] route=${templateRouteMs}ms exemplarIndex=${exemplarIndexMs}ms` +
+        ` queryEmbed=${queryEmbedMs}ms planLlm=${planLlmMs}ms`,
       response: raw,
       retrievalPlan: plan,
     });
@@ -237,9 +243,13 @@ export async function buildRetrievalPlan(
       `[query-plan] template=${plan.templateId} intent=${plan.intent}` +
         ` lowConfidence=${lowConfidence}` +
         ` queries=${JSON.stringify(plan.denseQueries)} keywords=${JSON.stringify(plan.keywords)}` +
-        ` route=${templateRouteMs}ms planLlm=${planLlmMs}ms`,
+        ` route=${templateRouteMs}ms exemplarIndex=${exemplarIndexMs}ms` +
+        ` queryEmbed=${queryEmbedMs}ms planLlm=${planLlmMs}ms`,
     );
-    return { plan, timing: { templateRouteMs, planLlmMs } };
+    return {
+      plan,
+      timing: { templateRouteMs, exemplarIndexMs, queryEmbedMs, planLlmMs },
+    };
   } catch (err) {
     console.warn('[query-plan] failed, using template fallback:', err);
     const plan = attachMeta({
@@ -259,6 +269,9 @@ export async function buildRetrievalPlan(
       response: err instanceof Error ? `ERROR: ${err.message}` : `ERROR: ${String(err)}`,
       retrievalPlan: plan,
     });
-    return { plan, timing: { templateRouteMs, planLlmMs: 0 } };
+    return {
+      plan,
+      timing: { templateRouteMs, exemplarIndexMs, queryEmbedMs, planLlmMs: 0 },
+    };
   }
 }

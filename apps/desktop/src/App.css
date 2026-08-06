@@ -731,6 +731,52 @@ input {
   margin-bottom: 12px;
 }
 
+.settings-hint-top {
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+
+.settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+  font-size: 13px;
+  color: #1d1d1f;
+}
+
+.settings-field span {
+  font-weight: 500;
+}
+
+.settings-actions {
+  margin-top: 8px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.settings-ollama-status {
+  font-size: 13px;
+  color: #515154;
+  margin: 0 0 12px;
+  line-height: 1.5;
+}
+
+.settings-ollama-status code {
+  background: #e8e8ed;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.status-ok {
+  color: #248a3d;
+}
+
+.status-warn {
+  color: #9a6700;
+}
+
 .model-status-list {
   list-style: none;
   font-size: 14px;
@@ -857,6 +903,10 @@ input {
 }
 
 .ingest-progress-text {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
   font-size: 12px;
   color: #86868b;
   margin-top: 6px;
@@ -864,6 +914,26 @@ input {
 
 .ingest-current {
   color: #1d1d1f;
+}
+
+.ingest-chunk-count {
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+  color: #1d1d1f;
+  font-weight: 500;
+}
+
+.ingest-progress-right {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.ingest-eta {
+  flex-shrink: 0;
+  color: #007aff;
+  font-weight: 500;
 }
 
 .activity-log {

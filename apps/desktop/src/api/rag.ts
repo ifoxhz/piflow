@@ -1,4 +1,9 @@
-import type { ChatHistoryMessage, ChatResult } from '@bluelamp/core';
+import type {
+  ChatHistoryMessage,
+  ChatResult,
+  OllamaConfig,
+  OllamaConfigResponse,
+} from '@bluelamp/core';
 
 /** Dev: Vite proxies /api → rag-server (avoids CORS + WSL port issues). */
 const RAG_SERVER_URL =
@@ -26,6 +31,36 @@ export async function fetchHealth() {
     throw new Error(`Health check failed: ${res.status}`);
   }
   return res.json();
+}
+
+export async function fetchOllamaConfig(): Promise<OllamaConfigResponse> {
+  const res = await fetch(`${RAG_SERVER_URL}/config/ollama`);
+  if (!res.ok) {
+    throw new Error(`读取 Ollama 配置失败: ${res.status}`);
+  }
+  return res.json() as Promise<OllamaConfigResponse>;
+}
+
+export async function saveOllamaConfig(
+  config: Partial<OllamaConfig>,
+): Promise<OllamaConfigResponse> {
+  const res = await fetch(`${RAG_SERVER_URL}/config/ollama`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(config),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    let message = `保存 Ollama 配置失败: ${res.status}`;
+    try {
+      const data = JSON.parse(text) as { error?: string };
+      if (data.error) message = data.error;
+    } catch {
+      if (text) message = text;
+    }
+    throw new Error(message);
+  }
+  return res.json() as Promise<OllamaConfigResponse>;
 }
 
 export interface SendChatOptions {
