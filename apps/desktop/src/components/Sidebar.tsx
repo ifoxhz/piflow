@@ -63,6 +63,29 @@ function GearIcon() {
   );
 }
 
+function FlowIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden>
+      <path
+        d="M3 5h5l2 3h5"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <circle cx="4" cy="5" r="1.5" stroke="currentColor" strokeWidth="1.4" />
+      <circle cx="14" cy="8" r="1.5" stroke="currentColor" strokeWidth="1.4" />
+      <path
+        d="M3 13h12"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+      />
+      <circle cx="9" cy="13" r="1.5" stroke="currentColor" strokeWidth="1.4" />
+    </svg>
+  );
+}
+
 function MoreIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
@@ -252,6 +275,14 @@ export function Sidebar({
         >
           <FolderIcon />
           Knowledge Base
+        </button>
+        <button
+          type="button"
+          className={`nav-item ${view === 'piFlow' ? 'active' : ''}`}
+          onClick={() => onNavigate('piFlow')}
+        >
+          <FlowIcon />
+          piFlow
         </button>
         <button
           type="button"

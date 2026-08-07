@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import * as mupdf from 'mupdf';
 import { PdfDocument } from 'pdf-oxide';
@@ -7,6 +8,7 @@ import {
   PDF_OCR_ENABLED,
   PDF_OCR_MIN_CHARS,
 } from '../config.js';
+
 export interface PdfPageText {
   page: number;
   text: string;
@@ -17,22 +19,40 @@ export interface ParsePdfResult {
   backend: ParserBackend;
 }
 
+export function hashPageContent(text: string): string {
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  return createHash('sha256').update(normalized, 'utf8').digest('hex');
+}
+
 function significantCharCount(text: string): number {
   return text.replace(/\s+/g, '').length;
 }
 
-function extractTextLayerPages(filePath: string): { pages: PdfPageText[]; pageCount: number } {
+export function getPdfPageCount(filePath: string): number {
+  const doc = PdfDocument.open(filePath);
+  try {
+    return doc.pageCount();
+  } finally {
+    doc.close();
+  }
+}
+
+function extractTextLayerRange(
+  filePath: string,
+  fromPage: number,
+  toPage: number,
+): Map<number, string> {
   const doc = PdfDocument.open(filePath);
   try {
     const pageCount = doc.pageCount();
-    const pages: PdfPageText[] = [];
-    for (let i = 0; i < pageCount; i++) {
-      const text = doc.toMarkdown(i).trim();
-      if (text) {
-        pages.push({ page: i + 1, text });
-      }
+    const out = new Map<number, string>();
+    const start = Math.max(1, fromPage);
+    const end = Math.min(pageCount, toPage);
+    for (let page = start; page <= end; page++) {
+      const text = doc.toMarkdown(page - 1).trim();
+      if (text) out.set(page, text);
     }
-    return { pages, pageCount };
+    return out;
   } finally {
     doc.close();
   }
@@ -59,68 +79,73 @@ function renderPageRgb(
 }
 
 /**
- * Prefer pdf-oxide text layer; OCR pages that look empty/scanned (PP-OCR ONNX).
+ * Parse a page window [fromPage, toPage] (1-based inclusive).
+ * Text layer first; OCR only weak pages inside this window.
  */
-export async function parsePdfForIngest(filePath: string): Promise<ParsePdfResult> {
-  const { pages: textPages, pageCount } = extractTextLayerPages(filePath);
-  const byPage = new Map(textPages.map((p) => [p.page, p.text]));
-
+export async function parsePdfPageWindow(
+  filePath: string,
+  fromPage: number,
+  toPage: number,
+): Promise<ParsePdfResult> {
+  const byPage = extractTextLayerRange(filePath, fromPage, toPage);
   const weakPages: number[] = [];
-  for (let page = 1; page <= pageCount; page++) {
+  for (let page = fromPage; page <= toPage; page++) {
     const text = byPage.get(page) ?? '';
     if (significantCharCount(text) < PDF_OCR_MIN_CHARS) {
       weakPages.push(page);
     }
   }
 
-  if (!PDF_OCR_ENABLED || weakPages.length === 0) {
-    return {
-      pages: textPages,
-      backend: 'pdf-oxide',
-    };
-  }
-
-  console.log(
-    `[ingest] pdf-oxide weak/empty on ${weakPages.length}/${pageCount} pages → PP-OCR @ ${PDF_OCR_DPI} DPI`,
-  );
-
-  const { ocrPageImage } = await import('./pp-ocr.js');
-  const buf = await readFile(filePath);
-  const ocrDoc = mupdf.Document.openDocument(buf, 'application/pdf');
   let ocrUsed = 0;
+  if (PDF_OCR_ENABLED && weakPages.length > 0) {
+    console.log(
+      `[ingest] pages ${fromPage}-${toPage}: pdf-oxide weak on ${weakPages.length} → PP-OCR @ ${PDF_OCR_DPI} DPI`,
+    );
+    const { ocrPageImage } = await import('./pp-ocr.js');
+    const buf = await readFile(filePath);
+    const ocrDoc = mupdf.Document.openDocument(buf, 'application/pdf');
 
-  for (let wi = 0; wi < weakPages.length; wi++) {
-    const page = weakPages[wi];
-    const t0 = Date.now();
-    try {
-      const image = renderPageRgb(ocrDoc, page - 1, PDF_OCR_DPI);
-      const text = await ocrPageImage(image);
-      if (significantCharCount(text) > 0) {
-        byPage.set(page, text);
-        ocrUsed += 1;
-        console.log(
-          `[ingest] PP-OCR page ${page}/${pageCount}: ${significantCharCount(text)} chars in ${Date.now() - t0}ms`,
-        );
-      } else {
-        console.log(`[ingest] PP-OCR page ${page}/${pageCount}: no text (${Date.now() - t0}ms)`);
+    for (const page of weakPages) {
+      const t0 = Date.now();
+      try {
+        const image = renderPageRgb(ocrDoc, page - 1, PDF_OCR_DPI);
+        const text = await ocrPageImage(image);
+        if (significantCharCount(text) > 0) {
+          byPage.set(page, text);
+          ocrUsed += 1;
+          console.log(
+            `[ingest] PP-OCR page ${page}: ${significantCharCount(text)} chars in ${Date.now() - t0}ms`,
+          );
+        } else {
+          console.log(`[ingest] PP-OCR page ${page}: no text (${Date.now() - t0}ms)`);
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.warn(`[ingest] PP-OCR page ${page} failed: ${message}`);
       }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.warn(`[ingest] PP-OCR page ${page} failed: ${message}`);
+      await new Promise<void>((r) => setImmediate(r));
     }
-    // OCR inference is CPU-heavy; yield so /health and UI proxy stay alive.
-    await new Promise<void>((r) => setImmediate(r));
   }
 
   const pages: PdfPageText[] = [];
-  for (let page = 1; page <= pageCount; page++) {
-    const text = byPage.get(page)?.trim();
-    if (text) pages.push({ page, text });
+  for (let page = fromPage; page <= toPage; page++) {
+    pages.push({ page, text: (byPage.get(page) ?? '').trim() });
   }
 
-  const backend: ParserBackend = ocrUsed > 0 ? 'pp-ocr' : 'pdf-oxide';
+  return {
+    pages,
+    backend: ocrUsed > 0 ? 'pp-ocr' : 'pdf-oxide',
+  };
+}
 
-  return { pages, backend };
+/**
+ * Prefer pdf-oxide text layer; OCR pages that look empty/scanned (PP-OCR ONNX).
+ * Full-document helper (non-windowed callers / tests).
+ */
+export async function parsePdfForIngest(filePath: string): Promise<ParsePdfResult> {
+  const pageCount = getPdfPageCount(filePath);
+  if (pageCount <= 0) return { pages: [], backend: 'pdf-oxide' };
+  return parsePdfPageWindow(filePath, 1, pageCount);
 }
 
 export async function parsePdfPages(filePath: string): Promise<PdfPageText[]> {

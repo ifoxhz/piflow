@@ -100,30 +100,44 @@ export async function runJob(jobId: string): Promise<void> {
     });
 
     const result = await processFile(file, {
-      onChunkProgress: (done, total) => {
-        file.status = 'embedding';
-        file.chunksDone = done;
-        file.chunksTotal = total;
-        if (!embedStartedAt.has(file.id) && done > 0) {
+      onProgress: (progress) => {
+        file.status =
+          progress.status === 'parsing'
+            ? 'parsing'
+            : progress.status === 'indexing'
+              ? 'indexing'
+              : 'embedding';
+        file.chunksDone = progress.chunksDone;
+        file.chunksTotal = progress.chunksTotal;
+        if (progress.pagesDone != null) file.pagesDone = progress.pagesDone;
+        if (progress.pagesTotal != null) file.pagesTotal = progress.pagesTotal;
+        if (progress.reusedPages != null) file.reusedPages = progress.reusedPages;
+        if (!embedStartedAt.has(file.id) && progress.chunksDone > 0) {
           embedStartedAt.set(file.id, Date.now());
         }
-        const remaining = estimateRemainingEmbed(done, total, embedStartedAt.get(file.id));
+        const remaining = estimateRemainingEmbed(
+          progress.chunksDone,
+          progress.chunksTotal,
+          embedStartedAt.get(file.id),
+        );
         file.etaLabel = remaining.label;
-        // Live job-level count: finished files + in-progress file.
         const finishedChunks = job.files
           .filter((f) => f.id !== file.id && f.status === 'done')
           .reduce((s, f) => s + (f.chunkCount ?? 0), 0);
         job.stats = {
           ...recomputeStats(job),
-          chunksIndexed: finishedChunks + done,
+          chunksIndexed: finishedChunks + progress.chunksDone,
         };
         emitJobEvent(jobId, {
           event: 'file_chunk_progress',
           data: {
             fileId: file.id,
             relativePath: file.relativePath,
-            done,
-            total,
+            done: progress.chunksDone,
+            total: progress.chunksTotal,
+            pagesDone: progress.pagesDone,
+            pagesTotal: progress.pagesTotal,
+            reusedPages: progress.reusedPages,
             etaLabel: remaining.label,
           },
         });

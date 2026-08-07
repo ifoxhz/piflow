@@ -1,6 +1,6 @@
 export type ParserBackend = 'native' | 'pdf-oxide' | 'pp-ocr' | 'docling';
 
-export type AppView = 'welcome' | 'chat' | 'knowledge' | 'settings';
+export type AppView = 'welcome' | 'chat' | 'knowledge' | 'piFlow' | 'settings';
 
 export interface Document {
   id: string;
@@ -147,4 +147,30 @@ export interface OllamaConfig {
 export interface OllamaConfigResponse extends OllamaConfig {
   configured: boolean;
   reachable: boolean;
+}
+
+/** Active LLM provider for piFlow (Settings → 模型配置). */
+export type LlmProvider = 'ollama' | 'deepseek';
+
+export interface LlmConfigResponse {
+  provider: LlmProvider;
+  ollama: OllamaConfigResponse;
+  deepseek: {
+    /** Always empty from API — never prefill secrets into the form. */
+    apiKey: '';
+    model: string;
+    baseUrl: string;
+    apiKeySet: boolean;
+    configured: boolean;
+  };
+}
+
+export interface LlmConfigUpdate {
+  provider?: LlmProvider;
+  ollama?: Partial<OllamaConfig>;
+  deepseek?: {
+    apiKey?: string;
+    model?: string;
+    baseUrl?: string;
+  };
 }

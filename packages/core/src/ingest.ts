@@ -32,6 +32,11 @@ export interface IngestFileTask {
   /** Live embed progress for the current file. */
   chunksDone?: number;
   chunksTotal?: number;
+  /** Live PDF page-window progress. */
+  pagesDone?: number;
+  pagesTotal?: number;
+  /** Pages reused via content fingerprint (no re-embed). */
+  reusedPages?: number;
   /** Pre-parse estimate (pages / chunks / ETA label). */
   estimatedPages?: number;
   estimatedChunks?: number;
@@ -98,6 +103,9 @@ export type IngestSseEvent =
         relativePath: string;
         done: number;
         total: number;
+        pagesDone?: number;
+        pagesTotal?: number;
+        reusedPages?: number;
         etaLabel?: string;
       };
     }

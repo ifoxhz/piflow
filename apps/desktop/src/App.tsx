@@ -6,6 +6,7 @@ import { WelcomeView } from './components/WelcomeView';
 import { ChatView } from './components/ChatView';
 import { ChatInput } from './components/ChatInput';
 import { KnowledgeView } from './components/KnowledgeView';
+import { PiFlowView } from './components/PiFlowView';
 import { SettingsView } from './components/SettingsView';
 import { useChatSessions } from './hooks/useChatSessions';
 import './App.css';
@@ -165,6 +166,7 @@ function App() {
 
       <main className="main-panel">
         {view === 'knowledge' && <KnowledgeView />}
+        {view === 'piFlow' && <PiFlowView />}
         {view === 'settings' && (
           <SettingsView health={health} healthError={healthError} />
         )}

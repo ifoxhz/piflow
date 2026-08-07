@@ -17,6 +17,7 @@ UI 设计预览：[docs/index.png](docs/index.png)
 - **多格式解析**：PDF（pdf-oxide / mupdf）、Markdown、TXT、HTML；扫描版 PDF 自动路由到 PaddleOCR
 - **可插拔生成后端**：本地 GGUF 推理（node-llama-cpp）、远程 Ollama（如局域网 GPU 服务器）、或 Pleias-RAG-1B
 - **自动模型管理**：基于清单的模型注册表；缺失模型自动从 hf-mirror.com 镜像下载，并支持强制重新下载
+- **piFlow Agent**：侧栏独立入口；可开关的 Postgres 只读 / 本地文件 Skill（Pi harness + SSE）
 
 ## 架构
 
@@ -25,25 +26,20 @@ UI 设计预览：[docs/index.png](docs/index.png)
 ```
 ┌────────────────────────────────────────────────────┐
 │         Tauri WebView (React + TypeScript)          │
-│   聊天 · 知识库 · 引用 · 活动日志                    │
+│   聊天 · 知识库 · piFlow · 引用 · 设置               │
 └──────────────────────┬─────────────────────────────┘
                        │ HTTP / SSE (localhost)
 ┌──────────────────────▼─────────────────────────────┐
-│            Node RAG Sidecar (apps/rag-server)       │
+│            Node Sidecar (apps/rag-server)           │
 │                                                     │
-│  导入 ──► 解析路由（原生 / pdf-oxide                 │
-│         / OCR）──► 结构感知分块                      │
-│         ──► BGE-M3 嵌入                              │
+│  RAG：导入 → 解析 → 分块 → BGE-M3 → 检索 → 生成     │
+│  piFlow：Pi Agent + Skills（Postgres / Local FS）   │
 │                                                     │
-│  聊天 ──► 模板路由 ──► 规划 LLM ──►                  │
-│        多路密集检索 ──► 答案 LLM                      │
-│        （本地 GGUF / Ollama / Pleias）              │
-│                                                     │
-│  SQLite（元数据 + 向量）· 模型缓存 · 文件             │
+│  SQLite · pg-actions · 模型缓存 · 文件               │
 └─────────────────────────────────────────────────────┘
 ```
 
-完整设计文档见 [docs/architecture.md](docs/architecture.md) 与 [docs/reRAG.md](docs/reRAG.md)。
+完整设计文档见 [docs/architecture.md](docs/architecture.md)、[docs/piflow.md](docs/piflow.md) 与 [docs/reRAG.md](docs/reRAG.md)。
 
 ## 技术栈
 
@@ -118,16 +114,19 @@ cd apps/desktop && pnpm tauri build  # 产出 .app 包
 
 ```
 apps/desktop/     Tauri + React 桌面 UI
-apps/rag-server/  Node RAG HTTP 服务（Hono）
+apps/rag-server/  Node HTTP 服务（RAG + piFlow，Hono）
 packages/core/    共享类型、分块器与 RAG 核心逻辑
+packages/pg-actions/  piFlow Postgres 只读 tools
 models/           模型清单与本地缓存
 scripts/          模型下载与服务管理脚本
-docs/             架构文档与 ADR
+docs/             架构文档、用户手册与 ADR
 ```
 
 ## 文档
 
 - [架构设计](docs/architecture.md) — 系统设计、模块划分、平台策略
+- [piFlow 设计](docs/piflow.md) — Agent / Skill / SSE / Postgres & Local FS
+- [用户手册（中文）](docs/user-manual.zh.md) — 安装、RAG、piFlow、设置与 FAQ
 - [reRAG：结构化预检索规划](docs/reRAG.md) — 模板路由 + 检索规划流水线
 - [检索质量升级](docs/retrieval-quality-upgrade.md) — 混合检索与 RRF 融合（提案）
 - [知识库目录导入](docs/knowledge-base-import.md)

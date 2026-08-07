@@ -24,6 +24,15 @@ export const EMBED_BATCH_SIZE = 8;
 /** Smaller flushes → more frequent index commits + steadier UI without changing embed cost much. */
 export const EMBED_FLUSH_SIZE = Number(process.env.BLUELAMP_EMBED_FLUSH_SIZE ?? 16);
 
+/**
+ * PDF ingest window: parse → chunk → embed → index this many pages at a time
+ * so UI progress updates before the whole book is parsed.
+ */
+export const PAGE_WINDOW_SIZE = Math.max(
+  1,
+  Number(process.env.BLUELAMP_INGEST_PAGE_WINDOW ?? 20),
+);
+
 /** When pdf-oxide extracts too little text, fall back to Node PP-OCR (ONNX). */
 export const PDF_OCR_ENABLED = process.env.BLUELAMP_PDF_OCR !== '0';
 /** Minimum non-whitespace chars from text layer before skipping OCR on that page. */
