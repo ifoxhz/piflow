@@ -1,6 +1,8 @@
 import type {
   ChatHistoryMessage,
   ChatResult,
+  LlmConfigResponse,
+  LlmConfigUpdate,
   OllamaConfig,
   OllamaConfigResponse,
 } from '@bluelamp/core';
@@ -61,6 +63,34 @@ export async function saveOllamaConfig(
     throw new Error(message);
   }
   return res.json() as Promise<OllamaConfigResponse>;
+}
+
+export async function fetchLlmConfig(): Promise<LlmConfigResponse> {
+  const res = await fetch(`${RAG_SERVER_URL}/config/llm`);
+  if (!res.ok) {
+    throw new Error(`读取模型配置失败: ${res.status}`);
+  }
+  return res.json() as Promise<LlmConfigResponse>;
+}
+
+export async function saveLlmConfig(config: LlmConfigUpdate): Promise<LlmConfigResponse> {
+  const res = await fetch(`${RAG_SERVER_URL}/config/llm`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(config),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    let message = `保存模型配置失败: ${res.status}`;
+    try {
+      const data = JSON.parse(text) as { error?: string };
+      if (data.error) message = data.error;
+    } catch {
+      if (text) message = text;
+    }
+    throw new Error(message);
+  }
+  return res.json() as Promise<LlmConfigResponse>;
 }
 
 export interface SendChatOptions {

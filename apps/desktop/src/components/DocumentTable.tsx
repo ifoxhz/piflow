@@ -78,6 +78,9 @@ export function IngestProgressBar({ job, importing }: IngestProgressBarProps) {
   const current = job.files.find((f) => f.id === job.currentFileId);
   const chunkDone = current?.chunksDone;
   const chunkTotal = current?.chunksTotal;
+  const pagesDone = current?.pagesDone;
+  const pagesTotal = current?.pagesTotal;
+  const showPages = current != null && pagesTotal != null && pagesTotal > 0;
   const showChunks =
     current != null &&
     chunkTotal != null &&
@@ -85,15 +88,19 @@ export function IngestProgressBar({ job, importing }: IngestProgressBarProps) {
     (current.status === 'embedding' ||
       current.status === 'indexing' ||
       current.status === 'chunking' ||
+      current.status === 'parsing' ||
       chunkDone != null);
 
   const etaBits: string[] = [];
   if (current?.etaLabel) etaBits.push(current.etaLabel);
-  if (current?.estimatedPages != null && !showChunks) {
+  if (!showPages && current?.estimatedPages != null && !showChunks) {
     etaBits.push(`${current.estimatedPages} 页`);
   }
   if (!showChunks && current?.estimatedChunks != null) {
     etaBits.push(`约 ${current.estimatedChunks} 块`);
+  }
+  if (current?.reusedPages) {
+    etaBits.push(`复用 ${current.reusedPages} 页`);
   }
 
   return (
@@ -109,6 +116,11 @@ export function IngestProgressBar({ job, importing }: IngestProgressBarProps) {
           )}
         </span>
         <span className="ingest-progress-right">
+          {showPages && (
+            <span className="ingest-chunk-count" title="Pages processed for current PDF">
+              {pagesDone ?? 0} / {pagesTotal} pages
+            </span>
+          )}
           {showChunks && (
             <span className="ingest-chunk-count" title="Chunks indexed for current file">
               {chunkDone ?? 0} / {chunkTotal} chunks

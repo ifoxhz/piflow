@@ -216,6 +216,12 @@ export function useIngestJob(onComplete?: () => void) {
               const fileId = String(data.fileId ?? '');
               const done = Number(data.done ?? 0);
               const total = Number(data.total ?? 0);
+              const pagesDone =
+                typeof data.pagesDone === 'number' ? data.pagesDone : undefined;
+              const pagesTotal =
+                typeof data.pagesTotal === 'number' ? data.pagesTotal : undefined;
+              const reusedPages =
+                typeof data.reusedPages === 'number' ? data.reusedPages : undefined;
               const relativePath = String(data.relativePath ?? '');
               const etaLabel =
                 typeof data.etaLabel === 'string' ? data.etaLabel : undefined;
@@ -223,9 +229,12 @@ export function useIngestJob(onComplete?: () => void) {
               setJob((prev) => {
                 if (!prev || prev.id !== jobId) return prev;
                 const files = patchFile(prev.files, fileId, {
-                  status: 'embedding',
+                  status: pagesDone != null && pagesDone === 0 ? 'parsing' : 'embedding',
                   chunksDone: done,
                   chunksTotal: total,
+                  ...(pagesDone != null ? { pagesDone } : {}),
+                  ...(pagesTotal != null ? { pagesTotal } : {}),
+                  ...(reusedPages != null ? { reusedPages } : {}),
                   ...(etaLabel ? { etaLabel } : {}),
                 });
                 const finishedChunks = files
@@ -242,6 +251,13 @@ export function useIngestJob(onComplete?: () => void) {
                 };
               });
               if (relativePath) {
+                const pageBit =
+                  pagesTotal != null
+                    ? `pages ${pagesDone ?? 0}/${pagesTotal}` +
+                      (reusedPages ? ` · reused ${reusedPages}` : '')
+                    : null;
+                const chunkBit = `chunks ${done}/${total}`;
+                const summary = [pageBit, chunkBit, etaLabel].filter(Boolean).join(' · ');
                 setActivityLog((prev) => {
                   const withoutOldRunning = prev.filter((e) => e.status !== 'running');
                   return [
@@ -251,9 +267,7 @@ export function useIngestJob(onComplete?: () => void) {
                       jobId,
                       relativePath,
                       status: 'running' as const,
-                      summary: etaLabel
-                        ? `indexing ${done}/${total} chunks · ${etaLabel}`
-                        : `indexing ${done}/${total} chunks`,
+                      summary,
                       timestamp: new Date().toISOString(),
                     },
                   ];

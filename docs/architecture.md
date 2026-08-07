@@ -51,51 +51,37 @@
 
 ## 2. 系统架构总览
 
-采用 **Tauri 2 + Node Sidecar** 双进程架构：Tauri 负责轻量 UI 壳与系统集成，Node 进程承载全部 RAG 推理与原生模块。
+采用 **Tauri 2 + Node Sidecar** 双进程架构：Tauri 负责轻量 UI 壳与系统集成，Node 进程承载全部 RAG 推理与原生模块。同一 Sidecar 内并行提供 **RAG Chat** 与 **piFlow Agent**（互不替换）。
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                    Tauri WebView（React + TypeScript）                   │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌─────────────┐ │
-│  │  文档管理 UI  │  │  对话界面     │  │  引用溯源面板 │  │  设置/模型   │ │
-│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘  └──────┬──────┘ │
-└─────────┼─────────────────┼─────────────────┼─────────────────┼───────┘
-          │                 │  HTTP / SSE     │                 │
-          │                 │  localhost      │                 │
-┌─────────▼─────────────────▼─────────────────▼─────────────────▼───────┐
-│              Node RAG Sidecar（apps/rag-server）                          │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────────┐ │
-│  │ Ingestion   │  │ Retrieval   │  │ Generation  │  │ Session / State │ │
-│  │ Service     │  │ Service     │  │ Orchestrator│  │ Manager         │ │
-│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘  └─────────────────┘ │
-│         │                │                │                               │
-│  ┌──────▼────────────────▼────────────────▼──────────────────────────┐ │
-│  │  BGE-M3 Embedder          │  Pleias-RAG-1B (node-llama-cpp + GGUF)  │ │
-│  │  (Worker Thread)          │  或 Python Sidecar（备选）               │ │
-│  └──────┬────────────────────┴──────────────────┬──────────────────────┘ │
-│         │                                       │                         │
-│  ┌──────▼───────────┐  ┌────────────┐  ┌───────▼─────────────────────┐  │
-│  │ SQLite / 向量索引 │  │ 模型缓存    │  │ 原始文档                    │  │
-│  └──────────────────┘  └────────────┘  └───────────────────────────┘  │
-│  ┌──────────────────────────────────────────────────────────────────┐  │
-│  │  Docling Sidecar（Phase 2，复杂 PDF / DOCX / OCR）                 │  │
-│  └──────────────────────────────────────────────────────────────────┘  │
-└──────────────────────────────────────────────────────────────────────────┘
-          ▲
-          │ 启动 / 监控 / 文件对话框 / 系统路径
-┌─────────┴───────────────────────────────────────────────────────────────┐
-│  Tauri Rust Shell（src-tauri，极简）                                      │
-│  Sidecar 生命周期 · 窗口管理 · 系统托盘 · Capabilities 权限控制             │
-└──────────────────────────────────────────────────────────────────────────┘
++------------------------------------------------------------------+
+|              Tauri WebView (React + TypeScript)                  |
+|  Knowledge | RAG Chat | piFlow | Citations | Settings            |
++-----+------------+----------+------------+-----------+-----------+
+      |            | HTTP/SSE |            |           |
+      |            | localhost|            |           |
++-----v------------v----------v------------v-----------v-----------+
+|              Node Sidecar (apps/rag-server :3847)                |
+|  Ingestion | Retrieval | Generation Orchestrator | piFlow Agent  |
+|  BGE-M3 + SQLite vectors + docs     |  pg-actions / local-fs     |
++-------------------------------+----------------------------------+
+                                ^
+                                | spawn / paths / dialogs
++-------------------------------v----------------------------------+
+|  Tauri Rust Shell (sidecar lifecycle, window, capabilities)      |
++------------------------------------------------------------------+
 ```
+
+**piFlow 专项设计**（Skill 模型、SSE 协议、Postgres / Local FS、落盘路径）见 **[piflow.md](piflow.md)**。
 
 ### 2.1 架构原则
 
 1. **Tauri 只做壳**：Rust 代码限于窗口、Sidecar 启停、系统 API；业务逻辑全部在 TypeScript
 2. **Node Sidecar 承载推理**：`node-llama-cpp`、`better-sqlite3` 等原生模块运行在独立 Node 进程，不进入 WebView
 3. **接口先行**：`packages/core` 定义 RAG 接口；Sidecar 暴露 HTTP API，前端与测试均可复用
-4. **渐进式复杂度**：首版 dense retrieval + Pleias 结构化 prompt；混合检索作为 v2 增强
-5. **平台抽象层**：路径、模型目录、硬件探测封装在 `PlatformAdapter`，由 Sidecar 实现、Tauri 注入环境变量
+4. **RAG 与 piFlow 并行**：文档问答走 `orchestrator`；工作流 Agent 走 `/piflow/*` + Pi Skills，互不替换
+5. **渐进式复杂度**：首版 dense retrieval + Pleias 结构化 prompt；混合检索作为 v2 增强
+6. **平台抽象层**：路径、模型目录、硬件探测封装在 `PlatformAdapter`，由 Sidecar 实现、Tauri 注入环境变量
 
 ---
 
@@ -714,11 +700,12 @@ bluelamp/
 │   └── rag-server/                 # Node RAG Sidecar
 │       ├── src/
 │       │   ├── index.ts            # HTTP 服务入口
-│       │   ├── routes/             # /chat, /documents, /health
+│       │   ├── routes/             # /chat, /documents, /health, /piflow/*
 │       │   ├── services/
 │       │   │   ├── ingestion/      # Router + pdf-oxide 适配器
 │       │   │   ├── retrieval/
 │       │   │   ├── generation/
+│       │   │   ├── piflow/         # Pi Agent 装配、会话、Skill 设置
 │       │   │   └── model-manager.ts  # 校验 / 镜像下载 / ensure
 │       │   ├── parsers/
 │       │   │   ├── pdf-oxide.ts
@@ -726,6 +713,7 @@ bluelamp/
 │       │   │   └── docling-client.ts  # 调用 Docling Sidecar
 │       │   ├── workers/            # embedder.worker.ts
 │       │   └── platform/
+│       ├── skills/                 # piFlow SKILL.md（postgres / local-fs / no-delete）
 │       ├── scripts/
 │       │   └── bundle-sidecar.ts
 │       └── package.json
@@ -742,9 +730,12 @@ bluelamp/
 │   │   ├── retrieval/
 │   │   ├── generation/
 │   │   └── types/
+│   ├── pg-actions/                 # piFlow Postgres 只读 tools
 │   └── pleias-parser/
 ├── docs/
 │   ├── architecture.md
+│   ├── piflow.md                   # piFlow Agent 设计
+│   ├── user-manual.zh.md
 │   └── adr/
 │       ├── 001-tauri-sidecar.md
 │       ├── 002-document-parsing.md
@@ -1095,4 +1086,4 @@ async function embedQuery(query: string) {
 
 ---
 
-*文档版本：v0.5 · 最后更新：2026-07-01 · 开发：WSL → 发布：macOS*
+*文档版本：v0.6 · 最后更新：2026-08-07 · 增补：内置 piFlow（见 [piflow.md](piflow.md)）*

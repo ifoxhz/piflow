@@ -9,7 +9,7 @@ export type LlmLogStage = 'generation' | 'query-rewrite' | 'retrieval-plan' | 'p
 export interface LlmQueryLogEntry {
   ts: string;
   stage: LlmLogStage;
-  backend: 'ollama' | 'local-llm' | 'pleias';
+  backend: 'ollama' | 'local-llm' | 'pleias' | 'deepseek';
   model: string;
   endpoint?: string;
   userQuery: string;
@@ -63,7 +63,7 @@ export interface PipelineTimingEntry {
     /** Router score below BLUELAMP_TEMPLATE_SCORE_MIN. */
     lowConfidence?: boolean;
     chunkCount: number;
-    generation?: 'ollama' | 'local-llm' | 'pleias' | 'retrieval-fallback' | 'none';
+    generation?: 'ollama' | 'deepseek' | 'local-llm' | 'pleias' | 'retrieval-fallback' | 'none';
     error?: string;
   };
 }

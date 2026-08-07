@@ -10,7 +10,11 @@ import {
   isLocalLlmConfigured,
   preferLocalLlm,
 } from '../generation/local-llm.js';
-import { generateViaOllama, isOllamaConfigured } from '../generation/ollama.js';
+import {
+  generateViaActiveLlm,
+  isActiveLlmConfigured,
+  resolveActiveLlm,
+} from '../generation/active-llm.js';
 import type { RagPromptOptions } from '../generation/rag-instruct-prompt.js';
 import { generateAnswerLocal } from '../generation/pleias.js';
 import { buildRetrievalPlan, fallbackPlan } from '../retrieval/query-plan.js';
@@ -44,7 +48,7 @@ function buildRetrievalAnswer(query: string, chunks: ScoredChunk[], note?: strin
 }
 
 function useGenerationBackend(): boolean {
-  return isOllamaConfigured() || isLocalLlmConfigured() || USE_LOCAL_PLEIAS;
+  return isActiveLlmConfigured() || isLocalLlmConfigured() || USE_LOCAL_PLEIAS;
 }
 
 function toPromptOptions(plan: RetrievalPlan): RagPromptOptions {
@@ -55,8 +59,12 @@ function toPromptOptions(plan: RetrievalPlan): RagPromptOptions {
 }
 
 function resolveGenerationBackend(): PipelineTimingEntry['meta']['generation'] {
-  if (isLocalLlmConfigured() && (preferLocalLlm() || !isOllamaConfigured())) return 'local-llm';
-  if (isOllamaConfigured()) return 'ollama';
+  if (isLocalLlmConfigured() && (preferLocalLlm() || !isActiveLlmConfigured())) {
+    return 'local-llm';
+  }
+  if (isActiveLlmConfigured()) {
+    return resolveActiveLlm().backend;
+  }
   if (USE_LOCAL_PLEIAS) return 'pleias';
   return 'none';
 }
@@ -67,11 +75,11 @@ async function generateAnswer(
   plan: RetrievalPlan,
 ): Promise<string> {
   const opts = toPromptOptions(plan);
-  if (isLocalLlmConfigured() && (preferLocalLlm() || !isOllamaConfigured())) {
+  if (isLocalLlmConfigured() && (preferLocalLlm() || !isActiveLlmConfigured())) {
     return generateAnswerLocalLlm(query, chunks, opts);
   }
-  if (isOllamaConfigured()) {
-    return generateViaOllama(query, chunks, opts);
+  if (isActiveLlmConfigured()) {
+    return generateViaActiveLlm(query, chunks, opts);
   }
   return generateAnswerLocal(query, chunks, opts);
 }

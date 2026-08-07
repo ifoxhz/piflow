@@ -4,11 +4,10 @@ import type {
 } from '@bluelamp/core';
 import { elapsedMs, logLlmQueryInput, nowMs } from '../chat/llm-query-log.js';
 import {
-  getOllamaUrl,
-  isOllamaConfigured,
-  ollamaChatComplete,
-  resolveOllamaModel,
-} from '../generation/ollama.js';
+  activeLlmChatComplete,
+  isActiveLlmConfigured,
+  resolveActiveLlm,
+} from '../generation/active-llm.js';
 import type { QueryTemplate } from './query-templates.js';
 import { routeQueryTemplate } from './template-router.js';
 
@@ -189,8 +188,8 @@ export async function buildRetrievalPlan(
     lowConfidence,
   });
 
-  if (!isOllamaConfigured()) {
-    console.warn('[query-plan] Ollama not configured, using template + original query');
+  if (!isActiveLlmConfigured()) {
+    console.warn('[query-plan] active LLM not configured, using template + original query');
     return {
       plan: attachMeta({
         intent: template.intent,
@@ -203,16 +202,15 @@ export async function buildRetrievalPlan(
   }
 
   const prompt = buildPlanPrompt(message, clipped, template);
-  const model = resolveOllamaModel(message);
-  const endpoint = getOllamaUrl();
 
   try {
     const planLlmStarted = nowMs();
-    const raw = await ollamaChatComplete(model, prompt, {
+    const { text: raw, backend, model, endpoint } = await activeLlmChatComplete(prompt, {
       temperature: 0,
       topP: 0.9,
-      numPredict: 400,
+      maxTokens: 400,
       timeoutMs: PLAN_TIMEOUT_MS,
+      queryForModelPick: message,
     });
     const planLlmMs = elapsedMs(planLlmStarted);
 
@@ -226,7 +224,7 @@ export async function buildRetrievalPlan(
     logLlmQueryInput({
       ts: new Date().toISOString(),
       stage: 'retrieval-plan',
-      backend: 'ollama',
+      backend,
       model,
       endpoint,
       userQuery: message,
@@ -242,6 +240,7 @@ export async function buildRetrievalPlan(
     console.log(
       `[query-plan] template=${plan.templateId} intent=${plan.intent}` +
         ` lowConfidence=${lowConfidence}` +
+        ` backend=${backend}` +
         ` queries=${JSON.stringify(plan.denseQueries)} keywords=${JSON.stringify(plan.keywords)}` +
         ` route=${templateRouteMs}ms exemplarIndex=${exemplarIndexMs}ms` +
         ` queryEmbed=${queryEmbedMs}ms planLlm=${planLlmMs}ms`,
@@ -258,12 +257,13 @@ export async function buildRetrievalPlan(
       keywords: [],
       answerHint: template.answerHint,
     });
+    const failed = resolveActiveLlm(message);
     logLlmQueryInput({
       ts: new Date().toISOString(),
       stage: 'retrieval-plan',
-      backend: 'ollama',
-      model,
-      endpoint,
+      backend: failed.backend,
+      model: failed.model,
+      endpoint: failed.endpoint,
       userQuery: message,
       prompt,
       response: err instanceof Error ? `ERROR: ${err.message}` : `ERROR: ${String(err)}`,
