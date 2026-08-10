@@ -279,19 +279,19 @@ export function Sidebar({
       <nav className="sidebar-footer">
         <button
           type="button"
-          className={`nav-item ${view === 'knowledge' ? 'active' : ''}`}
-          onClick={() => onNavigate('knowledge')}
-        >
-          <FolderIcon />
-          Knowledge Base
-        </button>
-        <button
-          type="button"
           className={`nav-item ${view === 'piFlow' ? 'active' : ''}`}
           onClick={() => onNavigate('piFlow')}
         >
           <FlowIcon />
           piFlow
+        </button>
+        <button
+          type="button"
+          className={`nav-item ${view === 'knowledge' ? 'active' : ''}`}
+          onClick={() => onNavigate('knowledge')}
+        >
+          <FolderIcon />
+          Knowledge Base
         </button>
         <button
           type="button"

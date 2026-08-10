@@ -1,5 +1,4 @@
 import { createHash } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
 import * as mupdf from 'mupdf';
 import { PdfDocument } from 'pdf-oxide';
 import type { ParserBackend } from '@bluelamp/core';
@@ -64,23 +63,34 @@ function renderPageRgb(
   dpi: number,
 ): { width: number; height: number; data: Uint8Array } {
   const page = doc.loadPage(pageIndex);
-  const scale = dpi / 72;
-  const pixmap = page.toPixmap(
-    mupdf.Matrix.scale(scale, scale),
-    mupdf.ColorSpace.DeviceRGB,
-    false,
-    true,
-  );
-  return {
-    width: pixmap.getWidth(),
-    height: pixmap.getHeight(),
-    data: new Uint8Array(pixmap.getPixels()),
-  };
+  try {
+    const scale = dpi / 72;
+    const pixmap = page.toPixmap(
+      mupdf.Matrix.scale(scale, scale),
+      mupdf.ColorSpace.DeviceRGB,
+      false,
+      true,
+    );
+    try {
+      return {
+        width: pixmap.getWidth(),
+        height: pixmap.getHeight(),
+        data: new Uint8Array(pixmap.getPixels()),
+      };
+    } finally {
+      // mupdf WASM/native may expose destroy; ignore if absent
+      const destroyable = pixmap as { destroy?: () => void };
+      destroyable.destroy?.();
+    }
+  } finally {
+    const destroyable = page as { destroy?: () => void };
+    destroyable.destroy?.();
+  }
 }
 
 /**
  * Parse a page window [fromPage, toPage] (1-based inclusive).
- * Text layer first; OCR only weak pages inside this window.
+ * Text layer first; OCR only weak pages inside this window (isolated child).
  */
 export async function parsePdfPageWindow(
   filePath: string,
@@ -99,31 +109,39 @@ export async function parsePdfPageWindow(
   let ocrUsed = 0;
   if (PDF_OCR_ENABLED && weakPages.length > 0) {
     console.log(
-      `[ingest] pages ${fromPage}-${toPage}: pdf-oxide weak on ${weakPages.length} → PP-OCR @ ${PDF_OCR_DPI} DPI`,
+      `[ingest] pages ${fromPage}-${toPage}: pdf-oxide weak on ${weakPages.length} → PP-OCR @ ${PDF_OCR_DPI} DPI (child)`,
     );
-    const { ocrPageImage } = await import('./pp-ocr.js');
-    const buf = await readFile(filePath);
-    const ocrDoc = mupdf.Document.openDocument(buf, 'application/pdf');
+    const { ocrPageImageIsolated } = await import('./pp-ocr-runner.js');
+    // Open by path — avoid holding a full-file Buffer on the main heap.
+    const ocrDoc = mupdf.Document.openDocument(filePath);
 
-    for (const page of weakPages) {
-      const t0 = Date.now();
-      try {
-        const image = renderPageRgb(ocrDoc, page - 1, PDF_OCR_DPI);
-        const text = await ocrPageImage(image);
-        if (significantCharCount(text) > 0) {
-          byPage.set(page, text);
-          ocrUsed += 1;
-          console.log(
-            `[ingest] PP-OCR page ${page}: ${significantCharCount(text)} chars in ${Date.now() - t0}ms`,
+    try {
+      for (const page of weakPages) {
+        const t0 = Date.now();
+        try {
+          const image = renderPageRgb(ocrDoc, page - 1, PDF_OCR_DPI);
+          const text = await ocrPageImageIsolated(image);
+          if (significantCharCount(text) > 0) {
+            byPage.set(page, text);
+            ocrUsed += 1;
+            console.log(
+              `[ingest] PP-OCR page ${page}: ${significantCharCount(text)} chars in ${Date.now() - t0}ms`,
+            );
+          } else {
+            console.log(`[ingest] PP-OCR page ${page}: no text (${Date.now() - t0}ms)`);
+          }
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          console.warn(
+            `[ingest] PP-OCR page ${page} failed (continuing): ${message}`,
           );
-        } else {
-          console.log(`[ingest] PP-OCR page ${page}: no text (${Date.now() - t0}ms)`);
         }
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        console.warn(`[ingest] PP-OCR page ${page} failed: ${message}`);
+        await new Promise<void>((r) => setImmediate(r));
       }
-      await new Promise<void>((r) => setImmediate(r));
+    } finally {
+      const destroyable = ocrDoc as { destroy?: () => void; close?: () => void };
+      destroyable.destroy?.();
+      destroyable.close?.();
     }
   }
 
