@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import type { Citation } from '@bluelamp/core';
 import { getDb } from '../../db.js';
 
 export type PiFlowChatRole = 'user' | 'assistant' | 'system';
@@ -16,6 +17,7 @@ export type PiFlowChatMessage = {
   role: PiFlowChatRole;
   content: string;
   createdAt: number;
+  citations?: Citation[];
 };
 
 export type SessionBucket = 'today' | 'week' | 'older';
@@ -40,19 +42,32 @@ function mapSession(row: {
   };
 }
 
+function parseCitations(raw: string | null | undefined): Citation[] | undefined {
+  if (!raw?.trim()) return undefined;
+  try {
+    const parsed = JSON.parse(raw) as Citation[];
+    return Array.isArray(parsed) ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function mapMessage(row: {
   id: string;
   session_id: string;
   role: string;
   content: string;
   created_at: number;
+  citations_json?: string | null;
 }): PiFlowChatMessage {
+  const citations = parseCitations(row.citations_json);
   return {
     id: row.id,
     sessionId: row.session_id,
     role: row.role as PiFlowChatRole,
     content: row.content,
     createdAt: row.created_at,
+    ...(citations?.length ? { citations } : {}),
   };
 }
 
@@ -148,7 +163,7 @@ export function renameSession(id: string, title: string): PiFlowChatSession | nu
 export function listMessages(sessionId: string): PiFlowChatMessage[] {
   const rows = getDb()
     .prepare(
-      `SELECT id, session_id, role, content, created_at
+      `SELECT id, session_id, role, content, created_at, citations_json
        FROM piflow_messages WHERE session_id = ? ORDER BY created_at ASC, rowid ASC`,
     )
     .all(sessionId) as Array<{
@@ -157,6 +172,7 @@ export function listMessages(sessionId: string): PiFlowChatMessage[] {
     role: string;
     content: string;
     created_at: number;
+    citations_json?: string | null;
   }>;
   return rows.map(mapMessage);
 }
@@ -166,6 +182,7 @@ export function appendMessage(
   role: PiFlowChatRole,
   content: string,
   createdAt = Date.now(),
+  citations?: Citation[],
 ): PiFlowChatMessage {
   const session = getSession(sessionId);
   if (!session) throw new Error(`Session not found: ${sessionId}`);
@@ -176,16 +193,27 @@ export function appendMessage(
     role,
     content,
     createdAt,
+    ...(citations?.length ? { citations } : {}),
   };
+
+  const citationsJson =
+    citations && citations.length > 0 ? JSON.stringify(citations) : null;
 
   const database = getDb();
   const tx = database.transaction(() => {
     database
       .prepare(
-        `INSERT INTO piflow_messages (id, session_id, role, content, created_at)
-         VALUES (?, ?, ?, ?, ?)`,
+        `INSERT INTO piflow_messages (id, session_id, role, content, created_at, citations_json)
+         VALUES (?, ?, ?, ?, ?, ?)`,
       )
-      .run(message.id, message.sessionId, message.role, message.content, message.createdAt);
+      .run(
+        message.id,
+        message.sessionId,
+        message.role,
+        message.content,
+        message.createdAt,
+        citationsJson,
+      );
 
     const title =
       role === 'user' && session.title === 'New chat'

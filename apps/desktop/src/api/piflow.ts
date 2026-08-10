@@ -1,3 +1,4 @@
+import type { Citation } from '@bluelamp/core';
 import { getRagServerUrl } from './rag';
 
 export type PiFlowSessionSummary = {
@@ -20,6 +21,7 @@ export type PiFlowMessage = {
   content: string;
   createdAt: number;
   tools?: string[];
+  citations?: Citation[];
 };
 
 export type PostgresConfig = {
@@ -80,6 +82,19 @@ export async function deletePiFlowSession(id: string): Promise<void> {
   if (!res.ok) throw new Error(await readError(res, '删除 piFlow 会话失败'));
 }
 
+export async function renamePiFlowSession(
+  id: string,
+  title: string,
+): Promise<PiFlowSessionSummary> {
+  const res = await fetch(`${getRagServerUrl()}/piflow/sessions/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title }),
+  });
+  if (!res.ok) throw new Error(await readError(res, '重命名 piFlow 会话失败'));
+  return res.json() as Promise<PiFlowSessionSummary>;
+}
+
 export async function fetchPostgresConfig(): Promise<PostgresConfig> {
   const res = await fetch(`${getRagServerUrl()}/config/postgres`);
   if (!res.ok) throw new Error(await readError(res, '读取 Postgres 配置失败'));
@@ -125,6 +140,7 @@ export type PiFlowSkillInfo = {
 };
 
 export type PiFlowSkillSettings = {
+  knowledge?: { enabled: boolean };
   postgres: { enabled: boolean };
   localFs: {
     enabled: boolean;
@@ -171,6 +187,7 @@ export type PiFlowSseHandlers = {
   }) => void;
   onTextDelta?: (delta: string) => void;
   onToolStart?: (data: PiFlowToolBudgetEvent) => void;
+  onCitations?: (citations: Citation[]) => void;
   onError?: (message: string, meta?: { aborted?: boolean }) => void;
   onDone?: (data: {
     ok?: boolean;
@@ -183,6 +200,7 @@ export type PiFlowSseHandlers = {
     toolBudget?: number;
     overBudget?: boolean;
     elapsedMs?: number;
+    citationCount?: number;
   }) => void;
 };
 
@@ -285,6 +303,13 @@ export async function sendPiFlowMessage(
               });
             }
             break;
+          case 'citations': {
+            const list = parsed.citations;
+            if (Array.isArray(list)) {
+              handlers.onCitations?.(list as Citation[]);
+            }
+            break;
+          }
           case 'error':
             handlers.onError?.(
               typeof parsed.message === 'string' ? parsed.message : 'Unknown error',
@@ -305,6 +330,7 @@ export async function sendPiFlowMessage(
                 toolBudget?: number;
                 overBudget?: boolean;
                 elapsedMs?: number;
+                citationCount?: number;
               },
             );
             break;

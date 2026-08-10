@@ -51,19 +51,18 @@
 
 ## 2. 系统架构总览
 
-采用 **Tauri 2 + Node Sidecar** 双进程架构：Tauri 负责轻量 UI 壳与系统集成，Node 进程承载全部 RAG 推理与原生模块。同一 Sidecar 内并行提供 **RAG Chat** 与 **piFlow Agent**（互不替换）。
+采用 **Tauri 2 + Node Sidecar** 双进程架构：Tauri 负责轻量 UI 壳与系统集成，Node 进程承载检索、导入与 Agent。**主对话入口为 piFlow（Pi Agent）**；知识库以 Skill/Tools（`kb_*`）挂载，Knowledge 页仅负责导入与文档管理。
 
 ```
 +------------------------------------------------------------------+
 |              Tauri WebView (React + TypeScript)                  |
-|  Knowledge | RAG Chat | piFlow | Citations | Settings            |
-+-----+------------+----------+------------+-----------+-----------+
-      |            | HTTP/SSE |            |           |
-      |            | localhost|            |           |
-+-----v------------v----------v------------v-----------v-----------+
+|  Knowledge | piFlow (主对话) | Citations UI | Settings           |
++-----+------------------+-------------------+---------------------+
+      |                  | HTTP/SSE localhost                      |
++-----v------------------v-----------------------------------------+
 |              Node Sidecar (apps/rag-server :3847)                |
-|  Ingestion | Retrieval | Generation Orchestrator | piFlow Agent  |
-|  BGE-M3 + SQLite vectors + docs     |  pg-actions / local-fs     |
+|  Ingestion | Retrieval (kb tools) | piFlow Agent + Skills        |
+|  BGE-M3 + SQLite vectors | pg-actions | knowledge-rag | local-fs |
 +-------------------------------+----------------------------------+
                                 ^
                                 | spawn / paths / dialogs
@@ -72,14 +71,14 @@
 +------------------------------------------------------------------+
 ```
 
-**piFlow 专项设计**（Skill 模型、SSE 协议、Postgres / Local FS、落盘路径）见 **[piflow.md](piflow.md)**。
+**piFlow 专项设计**（Agent-first、knowledge-rag B1、citations、Skill 模型）见 **[piflow.md](piflow.md)**。
 
 ### 2.1 架构原则
 
 1. **Tauri 只做壳**：Rust 代码限于窗口、Sidecar 启停、系统 API；业务逻辑全部在 TypeScript
 2. **Node Sidecar 承载推理**：`node-llama-cpp`、`better-sqlite3` 等原生模块运行在独立 Node 进程，不进入 WebView
 3. **接口先行**：`packages/core` 定义 RAG 接口；Sidecar 暴露 HTTP API，前端与测试均可复用
-4. **RAG 与 piFlow 并行**：文档问答走 `orchestrator`；工作流 Agent 走 `/piflow/*` + Pi Skills，互不替换
+4. **piFlow 主控 + RAG 插件化**：主问答走 `/piflow/*` + Pi Skills；知识库检索以 `kb_*` tools 暴露（见 [piflow.md](piflow.md) v0.2）
 5. **渐进式复杂度**：首版 dense retrieval + Pleias 结构化 prompt；混合检索作为 v2 增强
 6. **平台抽象层**：路径、模型目录、硬件探测封装在 `PlatformAdapter`，由 Sidecar 实现、Tauri 注入环境变量
 
@@ -1086,4 +1085,4 @@ async function embedQuery(query: string) {
 
 ---
 
-*文档版本：v0.6 · 最后更新：2026-08-07 · 增补：内置 piFlow（见 [piflow.md](piflow.md)）*
+*文档版本：v0.7 · 最后更新：2026-08-10 · Agent-first piFlow + knowledge-rag（见 [piflow.md](piflow.md)）*

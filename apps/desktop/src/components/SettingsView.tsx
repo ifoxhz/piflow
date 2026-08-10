@@ -1,6 +1,13 @@
 import { useEffect, useState } from 'react';
+import { isTauri } from '@tauri-apps/api/core';
+import { openPath, revealItemInDir } from '@tauri-apps/plugin-opener';
 import type { HealthResponse, LlmConfigResponse, LlmProvider } from '@bluelamp/core';
-import { fetchLlmConfig, saveLlmConfig } from '../api/rag';
+import {
+  fetchLlmConfig,
+  fetchServerLogInfo,
+  saveLlmConfig,
+  type ServerLogInfo,
+} from '../api/rag';
 import {
   fetchPiFlowSkills,
   fetchPostgresConfig,
@@ -9,6 +16,7 @@ import {
   testPostgresConfig,
   type PostgresConfig,
 } from '../api/piflow';
+import { notifyPiFlowSkillsChanged } from '../lib/piflowEvents';
 
 interface SettingsViewProps {
   health: HealthResponse | null;
@@ -45,6 +53,7 @@ export function SettingsView({ health, healthError }: SettingsViewProps) {
   const [pgStatus, setPgStatus] = useState<string | null>(null);
   const [pgSkillEnabled, setPgSkillEnabled] = useState(true);
 
+  const [kbSkillEnabled, setKbSkillEnabled] = useState(true);
   const [fsEnabled, setFsEnabled] = useState(false);
   const [fsWorkspace, setFsWorkspace] = useState('');
   const [fsAllowWrite, setFsAllowWrite] = useState(true);
@@ -52,6 +61,11 @@ export function SettingsView({ health, healthError }: SettingsViewProps) {
   const [fsSaving, setFsSaving] = useState(false);
   const [fsError, setFsError] = useState<string | null>(null);
   const [fsStatus, setFsStatus] = useState<string | null>(null);
+  const [kbStatus, setKbStatus] = useState<string | null>(null);
+  const [logInfo, setLogInfo] = useState<ServerLogInfo | null>(null);
+  const [logError, setLogError] = useState<string | null>(null);
+  const [logStatus, setLogStatus] = useState<string | null>(null);
+  const [logOpening, setLogOpening] = useState(false);
 
   const applyLlm = (cfg: LlmConfigResponse) => {
     setProvider(cfg.provider);
@@ -114,15 +128,37 @@ export function SettingsView({ health, healthError }: SettingsViewProps) {
 
   useEffect(() => {
     let cancelled = false;
+    fetchServerLogInfo()
+      .then((info) => {
+        if (!cancelled) {
+          setLogInfo(info);
+          setLogError(null);
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setLogError(err instanceof Error ? err.message : String(err));
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
     setFsLoading(true);
     setFsError(null);
     fetchPiFlowSkills()
-      .then(({ settings }) => {
+      .then(({ settings, skills }) => {
         if (cancelled) return;
+        setKbSkillEnabled(settings.knowledge?.enabled ?? true);
         setPgSkillEnabled(settings.postgres.enabled);
         setFsEnabled(settings.localFs.enabled);
         setFsWorkspace(settings.localFs.workspacePath);
         setFsAllowWrite(settings.localFs.allowWrite);
+        const kb = skills.find((s) => s.id === 'knowledge-rag');
+        setKbStatus(kb?.detail ?? (settings.knowledge?.enabled === false ? '已关闭' : null));
         setFsStatus(
           settings.localFs.enabled
             ? `已启用 · ${settings.localFs.workspacePath || '(未设工作区)'}`
@@ -251,6 +287,7 @@ export function SettingsView({ health, healthError }: SettingsViewProps) {
     setFsError(null);
     try {
       const result = await savePiFlowSkillSettings({
+        knowledge: { enabled: kbSkillEnabled },
         postgres: { enabled: pgSkillEnabled },
         localFs: {
           enabled: fsEnabled,
@@ -258,15 +295,19 @@ export function SettingsView({ health, healthError }: SettingsViewProps) {
           allowWrite: fsAllowWrite,
         },
       });
+      setKbSkillEnabled(result.settings.knowledge?.enabled ?? true);
       setPgSkillEnabled(result.settings.postgres.enabled);
       setFsEnabled(result.settings.localFs.enabled);
       setFsWorkspace(result.settings.localFs.workspacePath);
       setFsAllowWrite(result.settings.localFs.allowWrite);
+      const kb = result.skills.find((s) => s.id === 'knowledge-rag');
+      setKbStatus(kb?.detail ?? null);
       setFsStatus(
         result.settings.localFs.enabled
           ? `已保存并启用 · ${result.settings.localFs.workspacePath}`
           : '已保存（Local FS 关闭）',
       );
+      notifyPiFlowSkillsChanged();
     } catch (err) {
       setFsError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -426,6 +467,24 @@ export function SettingsView({ health, healthError }: SettingsViewProps) {
       </section>
 
       <section className="settings-section">
+        <h3>Knowledge RAG（piFlow skill）</h3>
+        <p className="settings-hint settings-hint-top">
+          默认启用。导入文档并产生 chunks 后变为 ready；Agent 通过 kb_list / kb_search /
+          kb_get_chunk 检索知识库。
+        </p>
+        <label className="settings-checkbox">
+          <input
+            type="checkbox"
+            checked={kbSkillEnabled}
+            onChange={(e) => setKbSkillEnabled(e.target.checked)}
+            disabled={fsLoading || fsSaving}
+          />
+          <span>启用 Knowledge RAG skill</span>
+        </label>
+        {kbStatus && <p className="settings-ollama-status">{kbStatus}</p>}
+      </section>
+
+      <section className="settings-section">
         <h3>Postgres（piFlow skill）</h3>
         <p className="settings-hint settings-hint-top">
           独立 skill：只读查询连接。保存连接时会预热 schema cache；禁止 DELETE/DROP 等写操作。
@@ -578,7 +637,7 @@ export function SettingsView({ health, healthError }: SettingsViewProps) {
             onClick={() => void handleSkillPackSave()}
             disabled={fsLoading || fsSaving}
           >
-            {fsSaving ? '保存中…' : '保存 Local FS / skill 开关'}
+            {fsSaving ? '保存中…' : '保存 Skills 开关'}
           </button>
         </div>
       </section>
@@ -606,6 +665,82 @@ export function SettingsView({ health, healthError }: SettingsViewProps) {
           Run <code>pnpm dev:server</code> and <code>pnpm models:ensure</code> to download models
           via hf-mirror.com.
         </p>
+      </section>
+
+      <section className="settings-section">
+        <h3>后端日志</h3>
+        <p className="settings-hint settings-hint-top">
+          服务端 console（含 ingest / OCR / embed / piFlow）写入滚动日志，便于调试性能。单文件约{' '}
+          {logInfo?.rotateMaxMb ?? 20}MB，保留最近 {logInfo?.rotateFiles ?? 3} 个。
+        </p>
+        {logError && <p className="status-error">{logError}</p>}
+        {logStatus && !logError && <p className="settings-ollama-status">{logStatus}</p>}
+        {logInfo && (
+          <>
+            <p className="settings-ollama-status">
+              <code title={logInfo.logFile}>{logInfo.logFile}</code>
+            </p>
+            <div className="settings-actions settings-actions-row">
+              <button
+                type="button"
+                className="btn-secondary"
+                disabled={logOpening}
+                onClick={() => {
+                  void (async () => {
+                    setLogOpening(true);
+                    setLogError(null);
+                    setLogStatus(null);
+                    try {
+                      if (!isTauri()) {
+                        await navigator.clipboard.writeText(logInfo.logDir);
+                        setLogStatus(`浏览器模式：已复制目录路径 ${logInfo.logDir}`);
+                        return;
+                      }
+                      // Prefer reveal (in opener:default); fallback to openPath.
+                      try {
+                        await revealItemInDir(logInfo.logFile);
+                      } catch {
+                        await openPath(logInfo.logDir);
+                      }
+                    } catch (err) {
+                      setLogError(err instanceof Error ? err.message : String(err));
+                    } finally {
+                      setLogOpening(false);
+                    }
+                  })();
+                }}
+              >
+                {logOpening ? '打开中…' : '打开日志文件夹'}
+              </button>
+              <button
+                type="button"
+                className="btn-secondary"
+                disabled={logOpening || !logInfo.logFile}
+                onClick={() => {
+                  void (async () => {
+                    setLogOpening(true);
+                    setLogError(null);
+                    setLogStatus(null);
+                    try {
+                      if (!isTauri()) {
+                        await navigator.clipboard.writeText(logInfo.logFile);
+                        setLogStatus(`浏览器模式：已复制文件路径 ${logInfo.logFile}`);
+                        return;
+                      }
+                      await openPath(logInfo.logFile);
+                    } catch (err) {
+                      setLogError(err instanceof Error ? err.message : String(err));
+                    } finally {
+                      setLogOpening(false);
+                    }
+                  })();
+                }}
+              >
+                打开日志文件
+              </button>
+            </div>
+          </>
+        )}
       </section>
     </div>
   );

@@ -35,6 +35,21 @@ export async function fetchHealth() {
   return res.json();
 }
 
+export type ServerLogInfo = {
+  logDir: string;
+  logFile: string;
+  rotateMaxMb: number;
+  rotateFiles: number;
+};
+
+export async function fetchServerLogInfo(): Promise<ServerLogInfo> {
+  const res = await fetch(`${RAG_SERVER_URL}/config/logs`);
+  if (!res.ok) {
+    throw new Error(`读取日志路径失败: ${res.status}`);
+  }
+  return res.json() as Promise<ServerLogInfo>;
+}
+
 export async function fetchOllamaConfig(): Promise<OllamaConfigResponse> {
   const res = await fetch(`${RAG_SERVER_URL}/config/ollama`);
   if (!res.ok) {

@@ -97,7 +97,7 @@ piflowChatRoutes.post('/', async (c) => {
             });
             break;
           }
-          case 'tool_execution_end':
+          case 'tool_execution_end': {
             obs.onToolEnd(event.toolCallId, event.isError);
             await send('tool_end', {
               toolName: event.toolName,
@@ -107,7 +107,18 @@ piflowChatRoutes.post('/', async (c) => {
               toolCount: obs.toolCount,
               toolBudget: obs.toolBudget,
             });
+            if (
+              !event.isError &&
+              typeof event.toolName === 'string' &&
+              event.toolName.startsWith('kb_')
+            ) {
+              const citations = bundle.getCitations();
+              if (citations.length > 0) {
+                await send('citations', { citations });
+              }
+            }
             break;
+          }
           case 'agent_end':
             await send('agent_end', {});
             break;
@@ -131,8 +142,19 @@ piflowChatRoutes.post('/', async (c) => {
       await session.prompt(prompt);
       await chain;
 
+      const citations = bundle.getCitations();
+      if (citations.length > 0) {
+        await send('citations', { citations });
+      }
+
       if (assistantText.trim()) {
-        appendMessage(sessionId!, 'assistant', assistantText.trim());
+        appendMessage(
+          sessionId!,
+          'assistant',
+          assistantText.trim(),
+          Date.now(),
+          citations.length > 0 ? citations : undefined,
+        );
       }
 
       const meta = getSession(sessionId!);
@@ -151,12 +173,20 @@ piflowChatRoutes.post('/', async (c) => {
         toolBudget: summary.toolBudget,
         overBudget: summary.overBudget,
         elapsedMs: summary.elapsedMs,
+        citationCount: citations.length,
       });
     } catch (err) {
       await chain;
+      const citations = bundle.getCitations();
       if (assistantText.trim()) {
         try {
-          appendMessage(sessionId!, 'assistant', assistantText.trim());
+          appendMessage(
+            sessionId!,
+            'assistant',
+            assistantText.trim(),
+            Date.now(),
+            citations.length > 0 ? citations : undefined,
+          );
         } catch {
           /* ignore persist failure */
         }

@@ -5,6 +5,7 @@ import { useIngestJob } from '../hooks/useIngestJob';
 import { ActivityLog } from './ActivityLog';
 import { DocumentTable, IngestProgressBar } from './DocumentTable';
 import { ImportFolderDialog } from './ImportFolderDialog';
+import { notifyPiFlowSkillsChanged } from '../lib/piflowEvents';
 
 export function KnowledgeView() {
   const [documents, setDocuments] = useState<DocumentSummary[]>([]);
@@ -19,6 +20,7 @@ export function KnowledgeView() {
       const [docsRes, stats] = await Promise.all([fetchDocuments(), fetchDocumentStats()]);
       setDocuments(docsRes.documents);
       setTotalChunks(stats.chunkCount);
+      notifyPiFlowSkillsChanged();
     } catch {
       /* server offline */
     } finally {

@@ -17,13 +17,22 @@ function LogoIcon() {
   return (
     <svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden>
       <circle cx="14" cy="14" r="14" fill="#007AFF" />
-      <circle cx="14" cy="11" r="4" fill="white" />
       <path
-        d="M8 20c1.5-3 4-4.5 6-4.5s4.5 1.5 6 4.5"
+        d="M7 10h6l2.5 4H21"
         stroke="white"
-        strokeWidth="2"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <circle cx="8.5" cy="10" r="1.6" fill="white" />
+      <circle cx="20.5" cy="14" r="1.6" fill="white" />
+      <path
+        d="M7 18.5h14"
+        stroke="white"
+        strokeWidth="1.8"
         strokeLinecap="round"
       />
+      <circle cx="14" cy="18.5" r="1.6" fill="white" />
     </svg>
   );
 }
@@ -236,7 +245,7 @@ export function Sidebar({
     <aside className="sidebar">
       <div className="sidebar-header">
         <LogoIcon />
-        <span className="sidebar-brand">RAG Assistant</span>
+        <span className="sidebar-brand">piFlow</span>
       </div>
 
       <button type="button" className="btn-new-chat" onClick={onNewChat}>
