@@ -88,6 +88,7 @@ function initSchema(database: Database.Database): void {
   ensureColumn(database, 'documents', 'source_page_count', 'source_page_count INTEGER');
   ensureColumn(database, 'documents', 'indexed_page_count', 'indexed_page_count INTEGER NOT NULL DEFAULT 0');
   ensureColumn(database, 'documents', 'ingest_complete', 'ingest_complete INTEGER NOT NULL DEFAULT 0');
+  ensureColumn(database, 'piflow_messages', 'citations_json', 'citations_json TEXT');
 
   // Pre-fingerprint native docs with chunks are treated complete; PDFs rebuild page hashes once.
   database.exec(`
@@ -251,4 +252,21 @@ export function listSearchableChunks(): StoredChunkRow[] {
        JOIN documents d ON d.id = c.document_id`,
     )
     .all() as StoredChunkRow[];
+}
+
+export function getChunkById(chunkId: string): StoredChunkRow | undefined {
+  return getDb()
+    .prepare(
+      `SELECT c.id, c.document_id, c.content, c.metadata_json, c.embedding,
+              d.title AS document_title, d.source_path
+       FROM chunks c
+       JOIN documents d ON d.id = c.document_id
+       WHERE c.id = ?`,
+    )
+    .get(chunkId) as StoredChunkRow | undefined;
+}
+
+export function countDocuments(): number {
+  const row = getDb().prepare('SELECT COUNT(*) as c FROM documents').get() as { c: number };
+  return row.c;
 }

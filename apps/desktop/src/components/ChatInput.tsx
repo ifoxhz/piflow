@@ -56,7 +56,7 @@ export function ChatInput({
       <input
         type="text"
         className="chat-input"
-        placeholder="Message RAG Assistant..."
+        placeholder="Message piFlow..."
         value={value}
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}

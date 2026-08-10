@@ -2,6 +2,7 @@ import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import type { HealthResponse } from '@bluelamp/core';
+import { initFileLogger } from './platform/file-logger.js';
 import { getHealth, loadManifest, validateModel } from './model-manager.js';
 import { ingestRoutes } from './routes/ingest.js';
 import { documentRoutes } from './routes/documents.js';
@@ -14,6 +15,7 @@ import { piflowConfig } from './services/piflow/config.js';
 import { getLlmProvider, loadLlmConfig } from './services/piflow/llm-settings.js';
 import { isPostgresConfigured } from './services/piflow/postgres-settings.js';
 
+const fileLog = initFileLogger();
 const PORT = Number(process.env.BLUELAMP_RAG_PORT ?? 3847);
 
 const app = new Hono();
@@ -57,6 +59,7 @@ await loadOllamaConfig();
 await loadLlmConfig();
 
 console.log(`[rag-server] listening on http://127.0.0.1:${PORT}`);
+console.log(`[rag-server] log file → ${fileLog.logFile}`);
 if (isOllamaConfigured()) {
   console.log(`[rag-server] Ollama generation → ${getOllamaUrl()}`);
 } else {

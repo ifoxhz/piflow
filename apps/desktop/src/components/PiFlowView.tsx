@@ -1,39 +1,29 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { formatCitationLocation } from '@bluelamp/core';
 import {
-  createPiFlowSession,
-  deletePiFlowSession,
   fetchPiFlowSession,
-  fetchPiFlowSessions,
   fetchPiFlowSkills,
   PIFLOW_TOOL_BUDGET_DEFAULT,
   sendPiFlowMessage,
-  type PiFlowGroupedSessions,
   type PiFlowMessage,
-  type PiFlowSessionSummary,
   type PiFlowSkillInfo,
 } from '../api/piflow';
+import { PIFLOW_SKILLS_CHANGED_EVENT } from '../lib/piflowEvents';
 import { MarkdownContent } from './MarkdownContent';
 
 type UiMessage = PiFlowMessage & { tools?: string[] };
 
-function flattenSessions(grouped: PiFlowGroupedSessions): Array<{
-  label: string;
-  sessions: PiFlowSessionSummary[];
-}> {
-  return [
-    { label: '今天', sessions: grouped.today },
-    { label: '最近一周', sessions: grouped.week },
-    { label: '更早', sessions: grouped.older },
-  ].filter((g) => g.sessions.length > 0);
-}
+export type PiFlowViewProps = {
+  sessionId: string | null;
+  onSessionIdChange: (id: string | null) => void;
+  onSessionsChanged: () => void;
+};
 
-export function PiFlowView() {
-  const [grouped, setGrouped] = useState<PiFlowGroupedSessions>({
-    today: [],
-    week: [],
-    older: [],
-  });
-  const [activeId, setActiveId] = useState<string | null>(null);
+export function PiFlowView({
+  sessionId,
+  onSessionIdChange,
+  onSessionsChanged,
+}: PiFlowViewProps) {
   const [messages, setMessages] = useState<UiMessage[]>([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
@@ -45,15 +35,7 @@ export function PiFlowView() {
   const [lastTurnStats, setLastTurnStats] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
-
-  const reloadSessions = useCallback(async () => {
-    try {
-      const next = await fetchPiFlowSessions();
-      setGrouped(next);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
-  }, []);
+  const loadGenRef = useRef(0);
 
   const reloadSkills = useCallback(async () => {
     try {
@@ -65,51 +47,40 @@ export function PiFlowView() {
   }, []);
 
   useEffect(() => {
-    void reloadSessions();
     void reloadSkills();
-  }, [reloadSessions, reloadSkills]);
+    const onSkillsChanged = () => {
+      void reloadSkills();
+    };
+    window.addEventListener(PIFLOW_SKILLS_CHANGED_EVENT, onSkillsChanged);
+    return () => window.removeEventListener(PIFLOW_SKILLS_CHANGED_EVENT, onSkillsChanged);
+  }, [reloadSkills]);
+
+  useEffect(() => {
+    const gen = ++loadGenRef.current;
+    setLastTurnStats(null);
+    setError(null);
+
+    if (!sessionId) {
+      setMessages([]);
+      return;
+    }
+
+    void (async () => {
+      try {
+        const detail = await fetchPiFlowSession(sessionId);
+        if (loadGenRef.current !== gen) return;
+        setMessages(detail.messages);
+      } catch (err) {
+        if (loadGenRef.current !== gen) return;
+        setError(err instanceof Error ? err.message : String(err));
+        setMessages([]);
+      }
+    })();
+  }, [sessionId]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, sending, toolCount]);
-
-  const selectSession = async (id: string) => {
-    setError(null);
-    setActiveId(id);
-    setLastTurnStats(null);
-    try {
-      const detail = await fetchPiFlowSession(id);
-      setMessages(detail.messages);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
-  };
-
-  const handleNewChat = async () => {
-    setError(null);
-    setLastTurnStats(null);
-    try {
-      const session = await createPiFlowSession();
-      setActiveId(session.id);
-      setMessages([]);
-      await reloadSessions();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
-  };
-
-  const handleDelete = async (id: string) => {
-    try {
-      await deletePiFlowSession(id);
-      if (activeId === id) {
-        setActiveId(null);
-        setMessages([]);
-      }
-      await reloadSessions();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
-  };
 
   const handleStop = () => {
     abortRef.current?.abort();
@@ -147,10 +118,10 @@ export function PiFlowView() {
     try {
       await sendPiFlowMessage(
         text,
-        activeId,
+        sessionId,
         {
           onStatus: (data) => {
-            if (data.sessionId) setActiveId(data.sessionId);
+            if (data.sessionId) onSessionIdChange(data.sessionId);
             if (typeof data.toolBudget === 'number') setToolBudget(data.toolBudget);
             if (typeof data.toolCount === 'number') setToolCount(data.toolCount);
           },
@@ -171,6 +142,11 @@ export function PiFlowView() {
                   ? { ...m, tools: [...(m.tools ?? []), data.toolName] }
                   : m,
               ),
+            );
+          },
+          onCitations: (citations) => {
+            setMessages((prev) =>
+              prev.map((m) => (m.id === assistantId ? { ...m, citations } : m)),
             );
           },
           onError: (message, meta) => {
@@ -204,6 +180,9 @@ export function PiFlowView() {
             if (typeof data.elapsedMs === 'number') {
               parts.push(`${Math.round(data.elapsedMs / 100) / 10}s`);
             }
+            if (typeof data.citationCount === 'number' && data.citationCount > 0) {
+              parts.push(`${data.citationCount} sources`);
+            }
             if (data.aborted) parts.push('已停止');
             if (parts.length) setLastTurnStats(parts.join(' · '));
 
@@ -221,7 +200,7 @@ export function PiFlowView() {
                 ),
               );
             }
-            void reloadSessions();
+            onSessionsChanged();
           },
         },
         controller.signal,
@@ -255,79 +234,60 @@ export function PiFlowView() {
     }
   };
 
-  const groups = flattenSessions(grouped);
+  const visibleSkills =
+    skills.length > 0
+      ? skills.filter((s) => s.id !== 'no-delete-data')
+      : [
+          {
+            id: 'knowledge-rag',
+            name: 'Knowledge RAG',
+            enabled: true,
+            ready: false,
+            description: '',
+            detail: '导入文档后就绪',
+          },
+          {
+            id: 'postgres-readonly',
+            name: 'Postgres 只读',
+            enabled: true,
+            ready: false,
+            description: '',
+            detail: '配置见 Settings',
+          },
+        ];
 
   return (
     <div className="piflow-view">
-      <aside className="piflow-sessions">
-        <div className="piflow-sessions-header">
-          <h2>piFlow</h2>
-          <button type="button" className="btn-secondary" onClick={() => void handleNewChat()}>
-            新对话
-          </button>
-        </div>
-        <div className="piflow-hint">
-          <p>piFlow 是智能 agent， skill 列表</p>
-          <ul>
-            {(skills.length > 0
-              ? skills.filter((s) => s.id !== 'no-delete-data')
-              : [
-                  {
-                    id: 'postgres-readonly',
-                    name: 'Postgres 只读',
-                    enabled: true,
-                    ready: false,
-                    description: '',
-                    detail: '配置见 Settings',
-                  },
-                ]
-            ).map((s) => (
-              <li key={s.id} className={s.enabled && s.ready ? undefined : 'is-muted'}>
+      <section className="piflow-chat">
+        <header className="piflow-chat-header">
+          <div>
+            <h2>piFlow</h2>
+            <p className="piflow-hint-inline">智能 Agent · Skills</p>
+          </div>
+          <ul className="piflow-skill-chips">
+            {visibleSkills.map((s) => (
+              <li
+                key={s.id}
+                className={s.enabled && s.ready ? 'is-ready' : 'is-muted'}
+                title={s.detail ?? s.description}
+              >
                 {s.name}
                 {s.detail ? ` · ${s.detail}` : ''}
               </li>
             ))}
           </ul>
-        </div>
-        {error && <p className="status-error piflow-inline-error">{error}</p>}
-        <div className="piflow-session-list">
-          {groups.length === 0 && <div className="chat-list-empty">暂无对话</div>}
-          {groups.map((group) => (
-            <div key={group.label} className="chat-group">
-              <div className="chat-group-label">{group.label}</div>
-              <ul className="chat-list">
-                {group.sessions.map((s) => (
-                  <li key={s.id} className={`chat-item ${activeId === s.id ? 'active' : ''}`}>
-                    <button
-                      type="button"
-                      className="chat-item-main"
-                      onClick={() => void selectSession(s.id)}
-                    >
-                      <span className="chat-item-title">{s.title}</span>
-                      <span className="chat-item-time">{s.timeLabel}</span>
-                    </button>
-                    <button
-                      type="button"
-                      className="chat-item-delete"
-                      title="删除"
-                      onClick={() => void handleDelete(s.id)}
-                    >
-                      ×
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </div>
-      </aside>
+        </header>
 
-      <section className="piflow-chat">
+        {error && <p className="status-error piflow-inline-error">{error}</p>}
+
         <div className="piflow-messages">
           {messages.length === 0 && (
             <div className="piflow-empty">
-              <h3>用自然语言查询 Postgres</h3>
-              <p>例如：列出 public schema 下的表，或统计某张表的行数。</p>
+              <h3>用自然语言提问</h3>
+              <p>
+                可检索已导入知识库，或查询 Postgres（需在 Settings 配置）。闲聊可不调工具；事实类问题会走
+                kb_* / pg_* tools。
+              </p>
             </div>
           )}
           {messages.map((m) => (
@@ -346,6 +306,36 @@ export function PiFlowView() {
                 <MarkdownContent content={m.content || (sending ? '…' : '')} />
               ) : (
                 <div className="piflow-user-text">{m.content}</div>
+              )}
+              {m.role === 'assistant' && m.citations && m.citations.length > 0 && (
+                <div className="message-citations">
+                  <div className="message-citations-title">Sources</div>
+                  {m.citations.map((c) => {
+                    const location = formatCitationLocation(c.page, c.heading);
+                    return (
+                      <div key={c.chunkId} className="message-citation">
+                        <div className="message-citation-header">
+                          <span className="message-citation-id">{c.sourceId}</span>
+                          <span
+                            className="message-citation-doc"
+                            title={c.sourcePath ?? c.documentTitle}
+                          >
+                            {c.documentTitle}
+                          </span>
+                          {location && (
+                            <span className="message-citation-location">{location}</span>
+                          )}
+                        </div>
+                        <div className="message-citation-quote">
+                          <MarkdownContent
+                            content={c.quote}
+                            className="markdown-content--compact"
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               )}
             </div>
           ))}

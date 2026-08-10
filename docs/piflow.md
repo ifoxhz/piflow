@@ -1,9 +1,11 @@
-# piFlow 设计文档（BlueLamp 内置）
+# piFlow 设计文档（BlueLamp 主控 Agent）
 
-> 基于 [Pi](https://pi.dev/) SDK 的工作流 Agent，已并入 BlueLamp（raglamp）桌面应用与 `rag-server`。  
+> 基于 [Pi](https://pi.dev/) SDK 的工作流 Agent，作为 BlueLamp **主对话入口**；知识库 RAG 与 Postgres 等以 **Skill / Tools** 形式挂载。  
 > 技术栈：TypeScript · pnpm monorepo · Hono · `@earendil-works/pi-coding-agent` · React（Tauri UI）
 
 **相关文档**：[架构总览](architecture.md) · [用户手册](user-manual.zh.md)
+
+**文档版本：v0.2** · Agent-first + knowledge-rag B1 · 2026-08
 
 ---
 
@@ -13,211 +15,205 @@
 
 | 诉求 | 说明 |
 |------|------|
-| 可扩展工作流 | 以 Pi 为 harness，用 Skill / Tool 包扩展能力，而不是自建 agent loop |
-| 与 RAG 并存 | 不替换现有 RAG `orchestrator`；侧栏独立入口 `piFlow` |
-| Skill 可插拔 | **Postgres 只读** 与 **Local FS** 分开开关与配置 |
-| 本地 / 内网优先 | LLM 复用 Settings 中的 Ollama；DB / 工作区由 Host 持有 |
-| 可观测交互 | HTTP + SSE 推送文本增量与 tool 起止事件 |
+| Pi 主控 | **piFlow** 为唯一主对话壳；增强检索工作流由 Agent 编排 |
+| RAG 插件化 | 知识库以 **薄 Tools** 暴露（方案 B）；模型按需检索 |
+| 多源同会话 | 默认同时启用 **knowledge-rag** + **postgres-readonly** |
+| Skill 可插拔 | KB / Postgres / Local FS 分开开关；关闭则不注入 prompt/tools |
+| 引用（citations） | SSE 实时推送 + 消息落库；B1 展示 Sources UI（打开本地 PDF 留后续） |
+| 查库策略 | 默认 **balanced**：闲聊可不调 tool；涉事实须 `kb_*` / `pg_*` |
+| 可观测 | SSE 文本/tool；tool 软预算与 Stop |
 
-### 1.2 非目标（当前）
+### 1.2 非目标（B1）
 
-- Databases 侧栏浏览（首版靠对话 + Settings 连接）
-- 写库 / DDL / 任意 SQL
-- 多租户、权限体系、完整审计
-- 独立 `agent-host` 进程（已合并进 `:3847` rag-server）
+- `kb_search_multi` / Host 内厚编排一锤子检索
+- 点击 Sources 打开本地 PDF（B1 只做可展示的 Sources UI）
+- 删除旧 `POST /chat` 实现（入口去掉，代码可暂留）
+- Databases 侧栏、写库、多租户
+
+### 1.3 已锁定产品决策
+
+| 项 | 决定 |
+|----|------|
+| 主壳名称 | **piFlow** |
+| 路线 | 方案 B（薄 KB tools） |
+| 查库默认 | **balanced** |
+| B1 工具 | `kb_list_documents` · `kb_search` · `kb_get_chunk` |
+| 旧 RAG Chat UI | 入口去掉；默认进 piFlow；New Chat = 新建 piFlow 会话 |
+| KB skill 就绪 | 默认 enabled；**导入文档后 `ready` 随库状态更新** |
 
 ---
 
 ## 2. 系统总览
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│  Desktop UI (React)                                         │
-│  Sidebar → piFlow · Settings（Ollama / Postgres / Local FS） │
-│  PiFlowView：会话列表 + SSE 对话 + tool pills                 │
-└────────────────────────────┬────────────────────────────────┘
-                             │ HTTP / SSE  localhost:3847
-┌────────────────────────────▼────────────────────────────────┐
-│  apps/rag-server                                            │
-│  /piflow/chat · /piflow/sessions · /piflow/skills           │
-│  /config/ollama · /config/postgres · /config/piflow-skills  │
-│                                                             │
-│  services/piflow/                                           │
-│    agent.ts · skill-settings.ts · chat-store.ts             │
-│    postgres-settings / schema-service / ollama-bridge       │
-│                                                             │
-│  Pi Harness + packages/pg-actions + skills/*                │
-└───────────────┬─────────────────────────────┬───────────────┘
-                │                             │
-                ▼                             ▼
-       LAN Ollama (/v1)              Postgres / 本地工作区
+┌──────────────────────────────────────────────────────────────┐
+│  Desktop UI                                                  │
+│  Sidebar：New Chat（piFlow 会话）· 会话列表 · Knowledge ·     │
+│           piFlow · Settings                                  │
+│  主区默认 = PiFlowView（SSE 对话 + tool pills + Sources）      │
+│  Knowledge = 仅导入 / 文档管理（不承担主问答）                  │
+└────────────────────────────┬─────────────────────────────────┘
+                             │ HTTP / SSE  :3847
+┌────────────────────────────▼─────────────────────────────────┐
+│  apps/rag-server · Pi Host                                   │
+│  /piflow/chat · /sessions · /skills                          │
+│  Skills: knowledge-rag · postgres-readonly · local-fs ·      │
+│          no-delete-data                                      │
+│  Tools: kb_* · pg_* · (read/bash/…)                          │
+└───────────┬─────────────────────┬────────────────────────────┘
+            ▼                     ▼
+     bluelamp.db chunks      Postgres / 本地工作区
 ```
-### 2.1 与 RAG 的关系
 
-| | RAG Chat | piFlow |
-|--|----------|--------|
-| 入口 | New Chat / 欢迎页 | 侧栏 **piFlow** |
-| 大脑 | `orchestrator.ask` | Pi `AgentSession` + tools |
-| 协议 | JSON `POST /chat` | SSE `POST /piflow/chat` |
-| 会话存储 | 前端 localStorage | `bluelamp.db` 表 `piflow_sessions` / `piflow_messages` |
-| Ollama | Settings 同一套 | 同一套（`ollama-config.json`） |
+### 2.1 与旧 RAG Chat 的关系
+
+| | 旧 RAG Chat（降级） | piFlow（主路径） |
+|--|-------------------|------------------|
+| 入口 | **已移除**（代码可暂留） | 默认视图 · New Chat |
+| 大脑 | `orchestrator.ask`（内部可复用检索函数） | Pi `AgentSession` + tools |
+| 协议 | `POST /chat` JSON | SSE `POST /piflow/chat` |
+| 会话 | localStorage | `piflow_sessions` / `piflow_messages`（含 citations） |
 
 ---
 
 ## 3. Skill / 插件模型
 
-Skill 与工具包**按需注入**：关闭的 skill 不进 system prompt，也不注册对应 tools。
+| Skill ID | 默认 | ready 条件 | 工具 |
+|----------|------|------------|------|
+| `knowledge-rag` | **enabled** | 库中有可检索 chunk（导入后更新） | `kb_list_documents` · `kb_search` · `kb_get_chunk` |
+| `postgres-readonly` | **enabled** | Settings 已配置 Postgres | `pg_list_*` · `pg_describe_table` · `pg_query` |
+| `local-fs` | off | 工作区路径有效 | `read` / `bash` / 可选 `edit`/`write` |
+| `no-delete-data` | 始终 | 始终 | 策略 |
 
-| Skill ID | 说明 | 工具 | 配置 |
-|----------|------|------|------|
-| `postgres-readonly` | 自然语言只读查库 | `pg_list_*` / `pg_describe_table` / `pg_query` | Settings → Postgres；`.data/postgres-config.json` |
-| `local-fs` | 工作区内读写本地文件 | `read` / `bash`（可选 `edit` / `write`） | Settings → Local FS；`.data/piflow-skills.json` |
-| `no-delete-data` | 禁止删除/破坏数据 | （策略） | 始终启用 |
-
-Skill 正文目录：
+Skill 目录：
 
 ```
 apps/rag-server/skills/
+├── knowledge-rag/SKILL.md
 ├── no-delete-data/SKILL.md
 ├── postgres-readonly/SKILL.md
 ├── local-fs/SKILL.md
-└── _stash/postgres-readonly-references/   # 表关系文档暂存，默认不注入
-    └── database-fields-and-relations.md
+└── _stash/postgres-readonly-references/
 ```
 
-启用 Postgres skill 时默认只注入 `SKILL.md`。若要把表关系文档加回 prompt，把 `_stash/postgres-readonly-references/` 移回 `postgres-readonly/references/`（Host 会自动拼接 `references/*.md`，可用 `PIFLOW_SKILL_REF_MAX_CHARS` 截断）。
+### 3.1 knowledge-rag（B1 薄工具）
 
-### LLM 后端
+| Tool | 入参 | 出参要点 |
+|------|------|----------|
+| `kb_list_documents` | 可选 `keyword` | 文档 id / title / path / chunkCount |
+| `kb_search` | `query`，可选 `topK`、`documentId` | hits + citation 字段（sourceId、path、page、quote、chunkId…） |
+| `kb_get_chunk` | `chunkId` | 原文 + 同一套 citation 字段 |
 
-Settings → **模型配置**：Ollama / DeepSeek **互斥**（写入 `.data/llm-config.json`）。当前选中的提供方同时用于 **RAG**（检索规划 + 生成）与 **piFlow**。API 响应里 `deepseek.apiKey` 恒为空，表单不会从 `.env` 预填密钥。
+**不做（本阶段）**：`kb_search_multi`、Host 内 query-plan 一锤子工具。
 
-Skill 开关文件（示例）：
+**balanced 策略（skill 文案）**  
+- 寒暄/闲聊：可不调 tool  
+- 涉文档内容、专名、流程、事实：须先 `kb_*` 和/或 `pg_*`  
+- 作答时对 KB 事实使用 citation 标记（如 `[1]`）
 
-```json
-{
-  "postgres": { "enabled": true },
-  "localFs": {
-    "enabled": false,
-    "workspacePath": "D:\\dev\\my-project",
-    "allowWrite": true
-  }
-}
-```
+### 3.2 导入后更新 skill 状态
 
-### 3.1 Local FS 注意点
+- `GET /piflow/skills` 的 `knowledge-rag.ready` 根据 `COUNT(chunks) > 0`（或文档数）计算  
+- 导入任务完成后，UI 重新拉取 skills，使 detail 从「知识库为空」变为「已索引 N 篇/块」
 
-- `workspacePath` 必须是**已存在的绝对路径目录**
-- Agent `cwd` 在启用 Local FS 时指向该工作区
-- Windows 上 Pi 的 `bash` 依赖 **Git Bash**（或可执行的 `bash.exe`）；否则 `bash` tool 会失败
-- 默认关闭 Local FS，避免模型误调不可用的 shell
+### 3.3 LLM 后端
 
-### 3.2 Postgres 安全边界
-
-- Skill + system prompt：禁止删除数据
-- `packages/pg-actions` 的 `sql-guard`：硬拦截写/破坏性 SQL；单语句；自动 `LIMIT`
-- Schema brief 注入 prompt（`.data/schema-cache/`）；保存连接时预热
+Settings → **模型配置**：Ollama / DeepSeek 互斥。当前提供方用于 **piFlow（主）**；旧 orchestrator 若仍被调用则共用同一配置。
 
 ---
 
-## 4. 关键代码路径
+## 4. 引用（citations）
+
+### 4.1 两条通道
+
+| 通道 | 用途 |
+|------|------|
+| **SSE** | 当轮实时：`citations` 事件（或随 `done` 附带），UI 立刻渲染 Sources |
+| **消息落库** | `piflow_messages.citations_json`：重开会话仍可显示 Sources |
+
+### 4.2 B1 UX
+
+- 展示 Sources 列表（对齐旧 Chat 视觉）  
+- **不**实现打开本地 PDF（后续阶段）  
+- Postgres 来源可不进 citations 数组，或单独标注（B1 以 KB 为主）
+
+---
+
+## 5. 关键代码路径
 
 | 职责 | 路径 |
 |------|------|
 | Pi 装配 | `apps/rag-server/src/services/piflow/agent.ts` |
+| KB tools | `apps/rag-server/src/services/piflow/kb-tools.ts` |
 | Skill 设置 | `apps/rag-server/src/services/piflow/skill-settings.ts` |
-| 会话存储 | `apps/rag-server/src/services/piflow/chat-store.ts` |
-| SSE 对话 | `apps/rag-server/src/routes/piflow/chat.ts` |
-| Postgres tools | `packages/pg-actions/` |
-| 桌面视图 | `apps/desktop/src/components/PiFlowView.tsx` |
-| 前端 API | `apps/desktop/src/api/piflow.ts` |
+| 会话 / 引用落库 | `apps/rag-server/src/services/piflow/chat-store.ts` |
+| SSE | `apps/rag-server/src/routes/piflow/chat.ts` |
+| 检索复用 | `apps/rag-server/src/services/retrieval/retriever.ts` |
+| 桌面主视图 | `apps/desktop/src/components/PiFlowView.tsx` · `App.tsx` |
 
 ---
 
-## 5. HTTP / SSE 协议
+## 6. HTTP / SSE
 
-均挂在 rag-server **`:3847`**（开发态前端经 Vite `/api` 代理）。
-
-| 端点 | 方法 | 说明 |
-|------|------|------|
-| `/piflow/chat` | POST | `{ message, sessionId? }` → SSE |
-| `/piflow/sessions` | GET / POST | 列表（今天/一周/更早）/ 新建 |
-| `/piflow/sessions/:id` | GET / PATCH / DELETE | 详情 / 重命名 / 删除 |
-| `/piflow/skills` | GET | skill 列表 + 当前设置 |
-| `/config/postgres` | GET / PUT | Postgres 连接；PUT 预热 schema |
-| `/config/postgres/test` | POST | 探测连通性 |
-| `/config/postgres/refresh-schema` | POST | 强制刷新 schema cache |
-| `/config/piflow-skills` | GET / PUT | Skill 开关与 Local FS 工作区 |
-| `/config/ollama` | GET / PUT | 与 RAG 共用 |
-
-### SSE 事件
-
-| event | data | 含义 |
-|-------|------|------|
-| `status` | `{ phase, sessionId }` | 开始 |
-| `text_delta` | `{ delta }` | 文本增量 |
-| `tool_start` / `tool_end` | tool 名与结果 | 工具起止 |
-| `agent_end` | `{}` | Pi 一轮结束 |
-| `done` | `{ ok, sessionId, title? }` | 完成（`ok: false` 表示失败收尾） |
-| `error` | `{ message }` | 错误 |
-
-Host 侧对订阅回调**串行化**，避免 `prompt()` 结束时丢增量；出错时尽量落库已生成的助手文本。
-
----
-
-## 6. 数据与配置落盘
-
-| 文件 / 表 | 用途 |
-|-----------|------|
-| `.data/bluelamp.db` → `piflow_sessions` / `piflow_messages` | piFlow 会话 |
-| `.data/ollama-config.json` | Ollama（RAG + piFlow 共用） |
-| `.data/postgres-config.json` | Postgres 连接 |
-| `.data/piflow-skills.json` | Skill 开关与 Local FS |
-| `.data/schema-cache/<hash>.json` | Schema brief 缓存 |
-| `.data/piflow-agent/` | Pi `models.json` / `settings.json` |
-
----
-
-## 7. 环境变量（可选）
-
-| 变量 | 说明 |
+| 端点 | 说明 |
 |------|------|
-| `DATABASE_URL` | 初始 Postgres URL（可被 UI 覆盖） |
-| `PG_QUERY_TIMEOUT_MS` | 语句超时，默认 15000 |
-| `PG_MAX_ROWS` | 查询行上限，默认 200 |
-| `SCHEMA_CACHE_TTL_MS` | schema 缓存 TTL |
-| `SCHEMA_BRIEF_MAX_CHARS` | brief 最大字符数 |
-| `BLUELAMP_OLLAMA_URL` / `BLUELAMP_OLLAMA_MODEL` | 与 RAG 共用 |
+| `POST /piflow/chat` | `{ message, sessionId? }` → SSE |
+| `/piflow/sessions*` | 会话 CRUD |
+| `GET /piflow/skills` | skill 列表（含 KB ready） |
+| `/config/piflow-skills` | 开关（含 `knowledge.enabled`） |
+| `/config/llm` · `/config/postgres` | 模型与 PG |
 
-完整列表见仓库根目录 [.env.example](../.env.example)。
+### SSE 事件（B1）
+
+| event | 含义 |
+|-------|------|
+| `status` | 开始 |
+| `text_delta` | 文本增量 |
+| `tool_start` / `tool_end` | 工具起止 |
+| `citations` | `{ citations: Citation[] }` 当轮引用（可多次合并） |
+| `agent_end` / `done` / `error` | 结束与错误 |
 
 ---
 
-## 8. UI 行为摘要
+## 7. 数据落盘
 
-- 侧栏 footer：**Knowledge Base** · **piFlow** · **Settings**
-- piFlow 页：独立会话列表 + 对话区；skill 状态来自 `/piflow/skills`
-- Settings：Ollama · Postgres（连接 + skill 开关）· Local FS · RAG Server 健康状态
+| 位置 | 用途 |
+|------|------|
+| `bluelamp.db` → `chunks` / `documents` | 知识库 |
+| `piflow_sessions` / `piflow_messages`（+ `citations_json`） | Agent 会话 |
+| `piflow-skills.json` | 含 `knowledge.enabled` |
+| `llm-config.json` / `ollama-config.json` / `postgres-config.json` | 配置 |
 
 ---
 
-## 9. 观测与打断（当前）
+## 8. UI 行为（B1）
+
+- 默认视图：**piFlow**  
+- **New Chat** → 新建 piFlow 会话并进入 piFlow  
+- 侧栏会话列表 = piFlow 会话（不再用 RAG localStorage 作为主列表）  
+- Knowledge Base：导入与文档表；导入完成后刷新 skill 状态  
+- Settings：模型 · Postgres · Local FS · knowledge skill 开关  
+
+---
+
+## 9. 观测与打断
 
 | 能力 | 说明 |
 |------|------|
-| UI `tools n/budget` | 运行中显示调用次数；默认 budget=`PIFLOW_TOOL_BUDGET`（10），超预算标红，**暂不硬停** |
-| UI「停止」 | 中止 fetch → 服务端 `session.abort()` |
-| 日志 | 控制台 `[piflow:obs] …`；JSONL：`.data/logs/piflow-turns.jsonl`（含 tool 列表、是否超预算、是否 abort、耗时） |
-
-用这些数据评估后续是否加硬预算 / 重复 SQL 去重。
-
-## 10. 后续可选
-
-- Host 硬预算：`maxToolCalls` / 重复 fingerprint 自动 abort
-- Databases 侧栏（schema / 表浏览）
-- Local FS 路径沙箱硬校验（拦截越界绝对路径）
-- bash 危险命令 allowlist / denylist（Host 层）
-- 写库 skill（需单独审批与审计）
+| `tools n/budget` | 默认 `PIFLOW_TOOL_BUDGET=10`，B1 仍为软预算 |
+| 停止 | abort fetch + `session.abort()` |
+| 日志 | `[piflow:obs]` · `piflow-turns.jsonl` |
 
 ---
 
-*文档版本：v0.1 · 对应 BlueLamp 内置 piFlow MVP · 2026-08*
+## 10. 后续阶段
+
+| 阶段 | 内容 |
+|------|------|
+| B1（本文） | 主入口切换 · 3 个 kb tools · citations SSE+落库 · Sources UI · skill ready |
+| B2 | 点击打开 PDF；balanced/strict Settings；`kb_search_multi`（可选） |
+| B3 | tool 硬预算；弱模型降级 `kb_search_smart`；移除旧 Chat 代码路径 |
+
+---
+
+*对应实现以本文件 v0.2 为准。*

@@ -107,18 +107,17 @@ BlueLamp（界面窗口名：**RAG Assistant**）是一款本地优先的检索�
 
 | 区域 | 功能 |
 |------|------|
-| **Chat（对话）** | 基于知识库的 RAG 提问、查看回答与引用；管理多会话 |
-| **Knowledge Base（知识库）** | 导入文件夹、查看已索引文档、导入进度与活动日志 |
-| **piFlow** | 工作流 Agent：Postgres 只读查询 / 本地文件操作（按 Skill 开关） |
-| **Settings（设置）** | Ollama、Postgres、Local FS Skill、服务状态等 |
+| **piFlow（主对话）** | Pi Agent：知识库检索（kb tools）+ Postgres 只读 + 可选本地文件；会话与 Sources 引用 |
+| **Knowledge Base（知识库）** | 导入文件夹、查看已索引文档、导入进度与活动日志（不承担主问答） |
+| **Settings（设置）** | 模型（Ollama/DeepSeek）、Postgres、Local FS / Knowledge Skill、服务状态等 |
 
-侧边栏可新建、切换、重命名或删除 **RAG** 对话会话。piFlow 有自己的会话列表（互不混用）。
+侧边栏 **New Chat** 新建 **piFlow** 会话；会话列表为 piFlow 历史。导入文档后，piFlow 的 Knowledge skill 状态会更新为「已就绪」。
 
 ---
 
 ## 5. 配置生成服务（Settings → Ollama）
 
-BlueLamp 在本机完成「检索」；「生成完整回答」以及 **piFlow** 均推荐连接 **Ollama**（可装在本机或局域网 GPU 服务器）。**RAG 与 piFlow 共用同一套 Ollama 配置。**
+BlueLamp 在本机完成向量检索；**piFlow** 对话生成推荐连接 **Ollama** 或 Settings 中的 **DeepSeek**（互斥）。导入仍使用本机 BGE-M3。
 
 ### 5.1 配置步骤
 

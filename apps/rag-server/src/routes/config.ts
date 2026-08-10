@@ -26,8 +26,18 @@ import {
   type LlmConfigUpdate,
   type LlmProvider,
 } from '../services/piflow/llm-settings.js';
+import { getLogDir, getServerLogPath } from '../platform/file-logger.js';
 
 export const configRoutes = new Hono();
+
+configRoutes.get('/logs', (c) => {
+  return c.json({
+    logDir: getLogDir(),
+    logFile: getServerLogPath(),
+    rotateMaxMb: 20,
+    rotateFiles: 3,
+  });
+});
 
 configRoutes.get('/ollama', async (c) => {
   const config = getOllamaRuntimeConfig();

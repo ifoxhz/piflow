@@ -6,6 +6,13 @@ use std::time::Duration;
 
 use tauri::{AppHandle, Manager, RunEvent};
 
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
+
+/// Hide console window for console-subsystem children (node.exe) on Windows.
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
 struct RagServerState(Mutex<Option<Child>>);
 
 const RAG_PORT: &str = "3847";
@@ -166,8 +173,10 @@ fn spawn_rag_server(app: &AppHandle) -> Result<(), String> {
     eprintln!("  data={}", data_dir.display());
     eprintln!("  models={}", models_dir.display());
 
-    let child = Command::new(&node)
-        .arg(&entry)
+    // Console output is tee'd by rag-server into `{dataDir}/logs/rag-server.log`.
+    // Do not inherit stderr (that forces a visible console on Windows).
+    let mut cmd = Command::new(&node);
+    cmd.arg(&entry)
         .current_dir(&rag_dir)
         .env("BLUELAMP_RAG_PORT", RAG_PORT)
         .env("BLUELAMP_DATA_DIR", &data_dir)
@@ -178,7 +187,12 @@ fn spawn_rag_server(app: &AppHandle) -> Result<(), String> {
         .env("BLUELAMP_PDF_OCR", "0")
         .stdin(Stdio::null())
         .stdout(Stdio::null())
-        .stderr(Stdio::inherit())
+        .stderr(Stdio::null());
+
+    #[cfg(windows)]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+
+    let child = cmd
         .spawn()
         .map_err(|e| format!("spawn rag-server: {e}"))?;
 

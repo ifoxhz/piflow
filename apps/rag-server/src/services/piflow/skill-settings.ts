@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { countChunks, countDocuments } from '../../db.js';
 import { getDataDir } from '../../platform/paths.js';
 import { piflowConfig } from './config.js';
 import { isPostgresConfigured } from './postgres-settings.js';
@@ -16,13 +17,18 @@ export type PostgresSkillSettings = {
   enabled: boolean;
 };
 
+export type KnowledgeSkillSettings = {
+  enabled: boolean;
+};
+
 export type PiFlowSkillSettings = {
+  knowledge: KnowledgeSkillSettings;
   postgres: PostgresSkillSettings;
   localFs: LocalFsSettings;
 };
 
 export type PiFlowSkillInfo = {
-  id: 'postgres-readonly' | 'local-fs' | 'no-delete-data';
+  id: 'knowledge-rag' | 'postgres-readonly' | 'local-fs' | 'no-delete-data';
   name: string;
   description: string;
   enabled: boolean;
@@ -33,6 +39,7 @@ export type PiFlowSkillInfo = {
 const CONFIG_PATH = () => path.join(getDataDir(), 'piflow-skills.json');
 
 const defaults = (): PiFlowSkillSettings => ({
+  knowledge: { enabled: true },
   postgres: { enabled: true },
   localFs: {
     enabled: false,
@@ -47,7 +54,12 @@ function normalize(input: Partial<PiFlowSkillSettings> | null | undefined): PiFl
   const base = defaults();
   const local: Partial<LocalFsSettings> = input?.localFs ?? {};
   const postgres: Partial<PostgresSkillSettings> = input?.postgres ?? {};
+  const knowledge: Partial<KnowledgeSkillSettings> = input?.knowledge ?? {};
   return {
+    knowledge: {
+      enabled:
+        typeof knowledge.enabled === 'boolean' ? knowledge.enabled : base.knowledge.enabled,
+    },
     postgres: {
       enabled: typeof postgres.enabled === 'boolean' ? postgres.enabled : base.postgres.enabled,
     },
@@ -81,6 +93,7 @@ export function getSkillSettings(): PiFlowSkillSettings {
 export function saveSkillSettings(input: Partial<PiFlowSkillSettings>): PiFlowSkillSettings {
   const current = getSkillSettings();
   const next = normalize({
+    knowledge: { ...current.knowledge, ...input.knowledge },
     postgres: { ...current.postgres, ...input.postgres },
     localFs: { ...current.localFs, ...input.localFs },
   });
@@ -100,6 +113,10 @@ export function saveSkillSettings(input: Partial<PiFlowSkillSettings>): PiFlowSk
   return next;
 }
 
+export function isKnowledgeSkillEnabled(): boolean {
+  return getSkillSettings().knowledge.enabled;
+}
+
 export function isPostgresSkillEnabled(): boolean {
   return getSkillSettings().postgres.enabled;
 }
@@ -115,13 +132,32 @@ export function getLocalFsWorkspace(): string | null {
   return s.workspacePath;
 }
 
+export function isKnowledgeReady(): boolean {
+  return countChunks() > 0;
+}
+
 export function listSkillInfos(): PiFlowSkillInfo[] {
   const s = getSkillSettings();
   const pgReady = isPostgresConfigured();
+  const kbReady = isKnowledgeReady();
+  const docCount = countDocuments();
+  const chunkCount = countChunks();
   const ws = s.localFs.workspacePath;
   const wsReady = Boolean(ws && fs.existsSync(ws) && fs.statSync(ws).isDirectory());
 
   return [
+    {
+      id: 'knowledge-rag',
+      name: 'Knowledge RAG',
+      description: '向量检索已导入文档（kb_list / kb_search / kb_get_chunk）',
+      enabled: s.knowledge.enabled,
+      ready: s.knowledge.enabled && kbReady,
+      detail: !s.knowledge.enabled
+        ? '已关闭'
+        : kbReady
+          ? `已索引 ${docCount} 篇 · ${chunkCount} chunks`
+          : '知识库为空 · Knowledge Base 导入后就绪',
+    },
     {
       id: 'postgres-readonly',
       name: 'Postgres 只读',
@@ -160,6 +196,7 @@ export function listSkillInfos(): PiFlowSkillInfo[] {
 /** Skill directory names to load into Pi for the current settings. */
 export function activeSkillDirNames(): string[] {
   const names = ['no-delete-data'];
+  if (isKnowledgeSkillEnabled()) names.push('knowledge-rag');
   if (isPostgresSkillEnabled()) names.push('postgres-readonly');
   if (isLocalFsSkillEnabled()) names.push('local-fs');
   return names;

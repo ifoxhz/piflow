@@ -9,26 +9,30 @@ import {
   SettingsManager,
   type AgentSession,
 } from '@earendil-works/pi-coding-agent';
+import type { Citation } from '@bluelamp/core';
 import { createPgTools, PG_TOOL_NAMES } from '@bluelamp/pg-actions';
 import { piflowConfig } from './config.js';
 import { getPiLlmSettings } from './llm-bridge.js';
+import { createKbTools, KB_TOOL_NAMES } from './kb-tools.js';
 import { createConfiguredSchemaCache } from './schema-service.js';
 import {
   activeSkillDirNames,
   getSkillSettings,
+  isKnowledgeSkillEnabled,
   isLocalFsSkillEnabled,
   isPostgresSkillEnabled,
   localFsToolNames,
   resolveAgentCwd,
 } from './skill-settings.js';
 
-const SYSTEM_PROMPT_BASE = `You are piFlow, a workflow agent. Only use tools from the currently enabled skills.
+const SYSTEM_PROMPT_BASE = `You are piFlow, the main workflow agent for BlueLamp. Only use tools from currently enabled skills.
 
 Rules:
 - Keep answers concise. Format replies in Markdown (headings, lists, tables, fenced code/SQL when useful).
 - After tool results arrive, always finish with a clear final answer — never stop at “我来查找…”.
 - Always follow the no-delete-data skill: never delete or destroy data.
-- Do not invent paths, table names, or column names.`;
+- Do not invent paths, table names, column names, or document quotes.
+- For knowledge-base facts, cite with [n] matching kb tool sourceId values.`;
 
 async function loadSkillBody(dirName: string): Promise<string> {
   const dir = path.join(piflowConfig.skillsDir, dirName);
@@ -109,6 +113,8 @@ function filterSkillsByActive<T extends { name?: string }>(
 export type SessionBundle = {
   session: AgentSession;
   dispose: () => void;
+  /** Citations accumulated from kb_* tools this turn (renumbered). */
+  getCitations: () => Citation[];
 };
 
 export async function createWorkflowSession(): Promise<SessionBundle> {
@@ -116,21 +122,34 @@ export async function createWorkflowSession(): Promise<SessionBundle> {
   if (!llm.configured) {
     if (llm.provider === 'deepseek') {
       throw new Error(
-        'DeepSeek is selected (PIFLOW_LLM_PROVIDER=deepseek) but DEEPSEEK_API_KEY is missing.',
+        'DeepSeek is selected but API Key is missing. Open Settings → 模型配置.',
       );
     }
-    throw new Error('Ollama is not configured. Open Settings → Ollama to set URL/model.');
+    throw new Error('Ollama is not configured. Open Settings → 模型配置.');
   }
   console.log(`[piflow] LLM backend: ${llm.label} @ ${llm.baseUrl}`);
 
   const skillSettings = getSkillSettings();
+  const knowledgeOn = isKnowledgeSkillEnabled();
   const postgresOn = isPostgresSkillEnabled();
   const localFsOn = isLocalFsSkillEnabled();
-  if (!postgresOn && !localFsOn) {
+  if (!knowledgeOn && !postgresOn && !localFsOn) {
     throw new Error(
-      'No piFlow skills enabled. Open Settings and enable Postgres and/or Local FS.',
+      'No piFlow skills enabled. Open Settings and enable Knowledge / Postgres / Local FS.',
     );
   }
+
+  const turnCitations: Citation[] = [];
+  const mergeCitations = (next: Citation[]) => {
+    const byId = new Map(turnCitations.map((c) => [c.chunkId, c]));
+    for (const c of next) byId.set(c.chunkId, c);
+    turnCitations.length = 0;
+    let i = 1;
+    for (const c of byId.values()) {
+      turnCitations.push({ ...c, sourceId: `[${i}]` });
+      i += 1;
+    }
+  };
 
   await ensureAgentDir();
 
@@ -161,6 +180,7 @@ export async function createWorkflowSession(): Promise<SessionBundle> {
   let schemaSection = '';
   let pgRuntime: ReturnType<typeof createConfiguredSchemaCache>['runtime'] | null = null;
   let pgTools: ReturnType<typeof createPgTools> = [];
+  const kbTools = knowledgeOn ? createKbTools({ onCitations: mergeCitations }) : [];
 
   if (postgresOn) {
     const configured = createConfiguredSchemaCache();
@@ -199,6 +219,9 @@ Disabled. Use pg_list_schemas / pg_list_tables / pg_describe_table against the l
   }
 
   const capabilityLines = [
+    knowledgeOn
+      ? '- Knowledge RAG tools enabled (kb_list_documents, kb_search, kb_get_chunk)'
+      : '- Knowledge RAG skill disabled',
     postgresOn ? '- Postgres readonly tools enabled' : '- Postgres skill disabled',
     localFsOn
       ? `- Local FS tools enabled: ${localFsToolNames().join(', ')}`
@@ -234,6 +257,7 @@ ${skillSections.join('\n\n')}${schemaSection}${localFsSection}`;
 
   const cwd = resolveAgentCwd();
   const toolNames = [
+    ...(knowledgeOn ? [...KB_TOOL_NAMES] : []),
     ...(postgresOn ? PG_TOOL_NAMES : []),
     ...localFsToolNames(),
   ];
@@ -256,7 +280,7 @@ ${skillSections.join('\n\n')}${schemaSection}${localFsSection}`;
     thinkingLevel: 'off',
     modelRuntime,
     tools: toolNames,
-    customTools: pgTools,
+    customTools: [...kbTools, ...pgTools],
     resourceLoader,
     sessionManager: SessionManager.inMemory(),
     settingsManager,
@@ -264,6 +288,7 @@ ${skillSections.join('\n\n')}${schemaSection}${localFsSection}`;
 
   return {
     session,
+    getCitations: () => [...turnCitations],
     dispose: () => {
       session.dispose();
       void pgRuntime?.pool?.end();

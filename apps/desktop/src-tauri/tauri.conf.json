@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "RAG Assistant",
+  "productName": "piFlow",
   "version": "0.1.0",
   "identifier": "com.bluelamp.rag-assistant",
   "build": {
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "RAG Assistant",
+        "title": "piFlow",
         "width": 1100,
         "height": 720,
         "minWidth": 900,
