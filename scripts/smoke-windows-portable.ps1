@@ -10,14 +10,14 @@ if ($env:SKIP_BUILD -ne '1') {
   if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 
-Get-Process -Name 'RAG Assistant', 'appsdesktop' -ErrorAction SilentlyContinue |
+Get-Process -Name 'piFlow', 'RAG Assistant', 'appsdesktop' -ErrorAction SilentlyContinue |
   Stop-Process -Force -ErrorAction SilentlyContinue
 # also free port 3847
 Get-NetTCPConnection -LocalPort 3847 -State Listen -ErrorAction SilentlyContinue |
   ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }
 Start-Sleep 2
 
-$appData = Join-Path $env:APPDATA 'com.bluelamp.rag-assistant'
+$appData = Join-Path $env:APPDATA 'piFlow'
 $sidecar = Join-Path $appData 'sidecar'
 $empty = Join-Path $env:TEMP 'raglamp-empty-clean'
 if (Test-Path $empty) { Remove-Item $empty -Recurse -Force }
@@ -36,7 +36,11 @@ if (Test-Path $appData) {
 }
 Remove-Item $empty -Recurse -Force -ErrorAction SilentlyContinue
 
-Start-Process 'D:\dev\raglamp\dist-windows\RAG-Assistant\RAG Assistant.exe'
+$exe = 'D:\dev\raglamp\dist-windows\piFlow\piFlow.exe'
+if (-not (Test-Path $exe)) {
+  $exe = 'D:\dev\raglamp\dist-windows\RAG-Assistant\RAG Assistant.exe'
+}
+Start-Process $exe
 $ok = $false
 for ($i = 0; $i -lt 120; $i++) {
   Start-Sleep 3
@@ -51,8 +55,8 @@ for ($i = 0; $i -lt 120; $i++) {
 }
 if (-not $ok) { Write-Host 'HEALTH FAILED'; exit 1 }
 
-$worker = Join-Path $env:APPDATA 'com.bluelamp.rag-assistant\sidecar\rag-server\dist\services\ingestion\embed-worker.js'
-$index = Join-Path $env:APPDATA 'com.bluelamp.rag-assistant\sidecar\rag-server\dist\index.js'
+$worker = Join-Path $env:APPDATA 'piFlow\sidecar\rag-server\dist\services\ingestion\embed-worker.js'
+$index = Join-Path $env:APPDATA 'piFlow\sidecar\rag-server\dist\index.js'
 Write-Host ("extract index={0} worker={1}" -f (Test-Path $index), (Test-Path $worker))
 if (-not (Test-Path $index)) { Write-Host 'EXTRACT FAILED'; exit 1 }
 if (Test-Path $worker) {

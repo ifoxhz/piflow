@@ -1,10 +1,10 @@
 ---
-title: "BlueLamp（RAG Assistant）用户使用手册"
+title: "piFlow 用户使用手册"
 subtitle: "Windows 便携版 · v0.2"
-author: "BlueLamp"
+author: "piFlow"
 ---
 
-# BlueLamp（RAG Assistant）用户使用手册
+# piFlow 用户使用手册
 
 **版本**：v0.2  
 **适用平台**：Windows 10 / 11（便携包）  
@@ -14,9 +14,9 @@ author: "BlueLamp"
 
 ## 1. 产品简介
 
-BlueLamp（界面窗口名：**RAG Assistant**）是一款本地优先的检索增强生成（RAG）桌面应用。你可以将本机文档导入知识库，再用自然语言提问；系统会基于你的文档检索相关内容并生成回答，同时给出可点击的**来源引用**。
+**piFlow** 是一款本地优先的检索增强生成（RAG）桌面应用。你可以将本机文档导入知识库，再用自然语言提问；系统会基于你的文档检索相关内容并生成回答，同时给出可点击的**来源引用**。
 
-同一应用内还提供 **piFlow**：基于 Pi 的智能 Agent，可通过可开关的 **Skill** 查询 Postgres（只读）或操作本机工作区文件。
+主对话为基于 Pi 的智能 Agent，可通过可开关的 **Skill** 查询知识库、Postgres（只读）或操作本机工作区文件。
 
 ### 1.1 核心特点
 
@@ -52,7 +52,7 @@ BlueLamp（界面窗口名：**RAG Assistant**）是一款本地优先的检索�
 
 便携包已内置：
 
-- 桌面程序（`RAG Assistant.exe`）  
+- 桌面程序（`piFlow.exe`）  
 - Node 运行时与 RAG 后端（首次启动自动解压）  
 - 嵌入模型 **BGE-M3**  
 
@@ -71,7 +71,7 @@ BlueLamp（界面窗口名：**RAG Assistant**）是一款本地优先的检索�
 
 | 文件 / 目录 | 作用 |
 |-------------|------|
-| `RAG Assistant.exe` | 主程序 |
+| `piFlow.exe` | 主程序 |
 | `runtime\` | 内置 Node 运行时 |
 | `models\` | 嵌入模型等 |
 | `rag-server.zip` | RAG 后端包（首次启动解压） |
@@ -79,22 +79,22 @@ BlueLamp（界面窗口名：**RAG Assistant**）是一款本地优先的检索�
 
 ### 3.2 首次启动
 
-1. 双击 **`RAG Assistant.exe`**  
+1. 双击 **`piFlow.exe`**  
 2. 首次启动会自动将后端解压到：  
-   `%APPDATA%\com.bluelamp.rag-assistant\sidecar\`  
+   `%APPDATA%\piFlow\sidecar\`  
 3. 等待窗口打开；后端默认监听本机端口 **`3847`**  
 4. 若杀毒软件拦截，请将安装目录与上述 AppData 目录加入白名单后重试  
 
 ### 3.3 日常启动
 
-之后直接运行 `RAG Assistant.exe` 即可；一般无需再手动启动其他服务。
+之后直接运行 `piFlow.exe` 即可；一般无需再手动启动其他服务。
 
 ### 3.4 数据存放位置
 
 | 内容 | 大致位置 |
 |------|----------|
-| 用户数据 / 数据库 / 日志 | `%APPDATA%\com.bluelamp.rag-assistant\` |
-| 后端解压目录 | `%APPDATA%\com.bluelamp.rag-assistant\sidecar\` |
+| 用户数据 / 数据库 / 日志 | `%APPDATA%\piFlow\` |
+| 后端解压目录 | `%APPDATA%\piFlow\sidecar\` |
 | 开发态数据目录 | 仓库内 `.data\`（含 `bluelamp.db`、Ollama / Postgres / piFlow 配置） |
 
 卸载或清理时：退出程序后删除便携文件夹；如需彻底清除数据，再删除上述 AppData 目录。
@@ -117,7 +117,7 @@ BlueLamp（界面窗口名：**RAG Assistant**）是一款本地优先的检索�
 
 ## 5. 配置生成服务（Settings → Ollama）
 
-BlueLamp 在本机完成向量检索；**piFlow** 对话生成推荐连接 **Ollama** 或 Settings 中的 **DeepSeek**（互斥）。导入仍使用本机 BGE-M3。
+piFlow 在本机完成向量检索；对话生成推荐连接 **Ollama** 或 Settings 中的 **DeepSeek**（互斥）。导入仍使用本机 BGE-M3。
 
 ### 5.1 配置步骤
 
@@ -362,7 +362,7 @@ piFlow 与知识库 Chat **分开**：它不检索你导入的文档，而是按
 | 扫描 PDF 几乎无内容 | 首版便携默认弱 OCR；请换文本层 PDF 或后续开启 OCR 版本 |
 | 回答很空或只有摘要 | 未配置 / 未连通 Ollama；配好后再问 |
 | 换电脑后知识库没了 | 数据在原机器 AppData；需迁移该目录或重新导入 |
-| 端口被占用 | 其他 RAG Assistant / 开发态服务占用了 `3847`；只保留一个实例 |
+| 端口被占用 | 其他 piFlow / 开发态服务占用了 `3847`；只保留一个实例 |
 | piFlow 半截无响应 | 确认 Ollama 正常；Postgres/Local FS 是否就绪；Local FS 是否缺 Git Bash；可新开对话重试 |
 | piFlow bash 报错 | Windows 未装 Git Bash，或工作区路径无效 |
 | Postgres 工具提示未配置 | Settings 中保存连接，并确认「启用 Postgres 只读 skill」已勾选 |
@@ -378,7 +378,7 @@ piFlow 与知识库 Chat **分开**：它不检索你导入的文档，而是按
 |----|-----|
 | RAG / piFlow 服务 | `http://127.0.0.1:3847` |
 | 健康检查 | `http://127.0.0.1:3847/health` |
-| 用户数据（便携） | `%APPDATA%\com.bluelamp.rag-assistant\` |
+| 用户数据（便携） | `%APPDATA%\piFlow\` |
 | 开发态数据 | 仓库 `.data\` |
 
 ### 12.2 版本信息
@@ -395,4 +395,4 @@ piFlow 与知识库 Chat **分开**：它不检索你导入的文档，而是按
 
 ---
 
-*感谢使用 BlueLamp。本手册面向最终用户；功能以当前发行版为准。*
+*感谢使用 piFlow。本手册面向最终用户；功能以当前发行版为准。*

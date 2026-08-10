@@ -1,6 +1,6 @@
 # 本地模型目录
 
-BlueLamp 运行时模型清单见 [`manifest.json`](./manifest.json)。应用启动时会校验所需文件，**缺失则自动从国内镜像下载**。
+piFlow 运行时模型清单见 [`manifest.json`](./manifest.json)。应用启动时会校验所需文件，**缺失则自动从国内镜像下载**。
 
 ## 当前状态
 
@@ -69,9 +69,8 @@ models/
 
 ## 生产环境缓存
 
-打包发布后，用户数据目录会复制或独立下载至：
+打包发布后，用户数据目录由壳注入（`BLUELAMP_DATA_DIR`），Windows 便携版为：
 
-- macOS: `~/Library/Application Support/BlueLamp/models/`
-- Windows: `%APPDATA%\BlueLamp\models\`
+- Windows: `%APPDATA%\piFlow\`（模型亦可随便携包 `models/` 分发）
 
 开发阶段优先使用仓库内 `models/` 目录（`env.localModelPath` 指向项目根）。

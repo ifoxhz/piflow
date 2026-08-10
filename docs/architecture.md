@@ -1,7 +1,8 @@
-# BlueLamp RAG 应用架构设计
+# piFlow RAG 应用架构设计
 
 > 基于 **Pleias-RAG-1B** 与 **BGE-M3** 的跨平台本地 RAG 应用  
-> 技术栈：TypeScript / JavaScript · **Tauri 2** · 首发 macOS · 后续扩展 Windows
+> 技术栈：TypeScript / JavaScript · **Tauri 2** · **Windows 首发**（便携包）  
+> **语言**：简体中文。English: [architecture.en.md](architecture.en.md)。
 
 ---
 
@@ -16,7 +17,7 @@
 | 可溯源回答 | 生成内容附带原文引用与字面引述，降低幻觉风险 |
 | 隐私优先 | 文档、向量、推理均在本地完成，无需上传云端 |
 | 轻量部署 | 1B 级生成模型 + 高效嵌入模型，可在消费级硬件上运行 |
-| 跨平台演进 | 以 macOS 为首发平台，架构预留 Windows 适配路径 |
+| 跨平台演进 | **Windows 为首发发布平台**；架构保留其它桌面平台适配空间（未验证） |
 
 ### 1.2 模型选型
 
@@ -71,14 +72,14 @@
 +------------------------------------------------------------------+
 ```
 
-**piFlow 专项设计**（Agent-first、knowledge-rag B1、citations、Skill 模型）见 **[piflow.md](piflow.md)**。
+**piFlow 专项设计**（Agent-first、knowledge-rag B1、citations、Skill 模型、**信息源软约束 / 不用 Host Grounding Gate**）见 **[piflow.md](piflow.md)** §3.4。
 
 ### 2.1 架构原则
 
 1. **Tauri 只做壳**：Rust 代码限于窗口、Sidecar 启停、系统 API；业务逻辑全部在 TypeScript
 2. **Node Sidecar 承载推理**：`node-llama-cpp`、`better-sqlite3` 等原生模块运行在独立 Node 进程，不进入 WebView
 3. **接口先行**：`packages/core` 定义 RAG 接口；Sidecar 暴露 HTTP API，前端与测试均可复用
-4. **piFlow 主控 + RAG 插件化**：主问答走 `/piflow/*` + Pi Skills；知识库检索以 `kb_*` tools 暴露（见 [piflow.md](piflow.md) v0.2）
+4. **piFlow 主控 + RAG 插件化**：主问答走 `/piflow/*` + Pi Skills；知识库检索以 `kb_*` tools 暴露（见 [piflow.md](piflow.md) v0.3）
 5. **渐进式复杂度**：首版 dense retrieval + Pleias 结构化 prompt；混合检索作为 v2 增强
 6. **平台抽象层**：路径、模型目录、硬件探测封装在 `PlatformAdapter`，由 Sidecar 实现、Tauri 注入环境变量
 
@@ -96,7 +97,7 @@
 | RAG 后端 | **Node Sidecar**（`apps/rag-server`） | 完整 Node 原生模块支持，与 UI 进程隔离 |
 | 前后端通信 | **HTTP + SSE**（localhost） | 简单、可独立调试；流式回答用 Server-Sent Events |
 | Tauri ↔ Sidecar | **Tauri Sidecar API** | Rust 侧启动/监控 Node 二进制，随应用退出自动清理 |
-| 嵌入模型 | **@huggingface/transformers** + Xenova/bge-m3 | 纯 JS/ONNX，macOS / Windows 一致 |
+| 嵌入模型 | **@huggingface/transformers** + Xenova/bge-m3 | 纯 JS/ONNX，Windows 开发与便携包一致 |
 | 生成模型 | **node-llama-cpp** + Pleias-RAG-1B GGUF | 原生 Node 绑定，无 Python 依赖 |
 | 向量检索 | **hnswlib-node** 或 **usearch** | 本地 ANN，npm 可安装 |
 | 元数据存储 | **better-sqlite3** | 运行在 Sidecar 进程内 |
@@ -135,16 +136,16 @@
   → Node: 释放模型、关闭 DB 连接
 ```
 
-Sidecar 二进制通过 `tauri.conf.json` 的 `bundle.externalBin` 打包，按平台命名：
+Sidecar 在 Windows 便携版中以 **zip + 内嵌 Node runtime** 随包分发（首次启动解压到 `%APPDATA%\piFlow\sidecar\`），不必依赖多平台命名的 externalBin：
 
 ```
-src-tauri/binaries/
-├── rag-server-aarch64-apple-darwin
-├── rag-server-x86_64-apple-darwin
-└── rag-server-x86_64-pc-windows-msvc.exe
+%APPDATA%\piFlow\sidecar\rag-server\
+├── dist\
+├── node_modules\
+└── …
 ```
 
-开发模式下可直接 `node apps/rag-server/dist/index.js`，无需每次编译 Sidecar 二进制。
+开发模式下直接 `pnpm --filter @bluelamp/rag-server dev`，无需每次打便携包。
 
 ### 3.4 备选方案（生成层）
 
@@ -263,7 +264,7 @@ async function parseWithPdfOxide(filePath: string): Promise<ParsedDocument> {
 **要点**：
 
 - 使用 `*Async` 方法，避免阻塞 Node 事件循环
-- 预编译 N-API 二进制，macOS arm64/x64、Windows x64 开箱可用
+- 预编译 N-API 二进制，Windows x64 开箱可用
 - 不提供 chunk，后续交给 `packages/core` 分块器
 
 #### 4.1.3 Docling（Python Sidecar，高质量路径）
@@ -369,7 +370,7 @@ interface Embedder {
 
 interface EmbedderOptions {
   modelId: 'Xenova/bge-m3';
-  dtype: 'fp32' | 'fp16' | 'q4';  // macOS Apple Silicon 建议 fp16
+  dtype: 'fp32' | 'fp16' | 'q4';  // Windows 默认 fp16
   device: 'wasm' | 'webgpu';       // Node 环境默认 wasm
   maxBatchSize: number;
 }
@@ -471,7 +472,7 @@ interface Generator {
 - 加载 `Pleias-RAG-1B.gguf`（约 2.4 GB 未量化版本）
 - 配置合适的 `contextSize`（建议 ≥ 8192，视检索 source 数量调整）
 - 使用流式输出（`onToken`）实现打字机效果
-- macOS Apple Silicon 可启用 Metal 加速；Windows 侧使用 CUDA（如有独显）或 CPU
+- Windows：有 NVIDIA 时可评估 CUDA；否则 CPU（本机已验证路径）
 
 ### 4.5 会话与状态管理
 
@@ -604,7 +605,7 @@ interface DownloadProgress {
 | 环境 | `BLUELAMP_MODELS_DIR` / `env.localModelPath` |
 |------|-----------------------------------------------|
 | 开发（仓库内） | `{repoRoot}/models` |
-| 生产（用户目录） | `~/Library/Application Support/BlueLamp/models`（macOS） |
+| 生产（用户目录） | `%APPDATA%\piFlow\`（便携版由壳注入 `BLUELAMP_DATA_DIR`；模型常随包/同目录） |
 
 Transformers.js 加载本地模型时，`pipeline('feature-extraction', 'Xenova/bge-m3')` 会解析为 `{localModelPath}/Xenova/bge-m3/`。
 
@@ -739,7 +740,7 @@ bluelamp/
 │       ├── 001-tauri-sidecar.md
 │       ├── 002-document-parsing.md
 │       ├── 003-model-management.md
-│       └── 004-wsl-dev-macos-release.md
+│       └── 004-wsl-dev-windows-release.md
 ├── models/
 │   ├── manifest.json               # 模型清单（路径、必填文件、镜像 URL）
 │   ├── README.md
@@ -756,57 +757,45 @@ bluelamp/
 
 ## 7. 平台适配策略
 
-### 7.0 开发流程：WSL → macOS
+### 7.0 开发流程：WSL / 浏览器 → Windows 便携包
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  Phase A — WSL 开发（当前）                                   │
+│  Phase A — 开发（WSL 或 Windows）                             │
 │  pnpm dev:server + pnpm dev:ui（浏览器）                      │
-│  完整 RAG 链路、UI、模型、文档导入均在 Linux 上验证              │
+│  完整 RAG / piFlow 链路、导入、模型均可在本机验证               │
 └───────────────────────────┬─────────────────────────────────┘
                             │ 功能验收通过
                             ▼
 ┌─────────────────────────────────────────────────────────────┐
-│  Phase B — macOS 发布                                         │
-│  tauri dev / tauri build · Metal · Sidecar 打包 · 签名公证    │
+│  Phase B — Windows 发布                                       │
+│  pnpm build:windows → dist-windows/piFlow/ + portable.zip     │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-详细命令与环境见 [development-wsl.md](development-wsl.md)。
+详细命令见 [development-wsl.md](development-wsl.md)、[development-windows.md](development-windows.md)。
 
-| WSL 可完成 | 留到 macOS |
-|------------|------------|
-| React UI、API 联调 | Tauri 窗口与系统集成 |
-| BGE-M3 / Pleias / pdf-oxide（CPU） | Metal 加速验证 |
-| SQLite、向量索引、文档导入 | `.app` 打包与公证 |
-| `pnpm models:ensure` | Sidecar 二进制打入 bundle |
+| 开发态可完成 | Windows 打包验证 |
+|--------------|------------------|
+| React UI、API 联调 | Tauri 窗口与系统选文件夹 |
+| BGE-M3 / 解析 / 导入（CPU） | 便携包首次解压 sidecar |
+| SQLite、向量索引、piFlow | `%APPDATA%\piFlow\` 数据目录 |
+| `pnpm models:ensure` | 内嵌 BGE-M3 随包分发 |
 
-### 7.1 macOS（首发发布目标）
+### 7.1 Windows（首发发布目标）
 
 | 关注点 | 方案 |
 |--------|------|
-| WebView | WKWebView（Tauri 内置） |
-| 硬件加速 | BGE-M3：WASM；Pleias：Metal via llama.cpp |
-| 模型缓存路径 | `~/Library/Application Support/BlueLamp/models/` |
-| 用户数据路径 | `~/Library/Application Support/BlueLamp/data/` |
-| Sidecar 路径 | Tauri 通过 `app.path().resource_dir()` 定位二进制 |
+| WebView | WebView2（Tauri 内置） |
+| 硬件加速 | 嵌入：ONNX CPU；生成：Ollama / DeepSeek（可选本地 GGUF） |
+| 用户数据路径 | `%APPDATA%\piFlow\`（`BLUELAMP_DATA_DIR`） |
+| 模型 | 开发：`{repo}/models`；便携包：资源目录 / 用户目录 |
+| Sidecar | zip 解压到 `%APPDATA%\piFlow\sidecar\`，内嵌 `node.exe` 启停 |
 | 内存建议 | ≥ 16 GB RAM |
-| 代码签名 | Apple Developer 证书 + `tauri build` 公证（Notarization） |
-| Tauri 权限 | `capabilities/default.json` 配置 dialog、fs、shell sidecar |
+| 安装形态 | **便携 zip**（因 BGE-M3 ≈ 1.1GB，暂不用 NSIS/MSI） |
+| Tauri 权限 | `capabilities/default.json`（dialog、opener、`$APPDATA/piFlow/**`） |
 
-### 7.2 Windows（后续）
-
-| 关注点 | 方案 |
-|--------|------|
-| WebView | WebView2（Tauri 内置，首次运行可能触发运行时安装） |
-| 硬件加速 | CUDA（NVIDIA）或 CPU fallback |
-| 模型缓存路径 | `%APPDATA%\BlueLamp\models\` |
-| 路径处理 | Sidecar 内统一 `path.join` |
-| Sidecar 二进制 | `rag-server-x86_64-pc-windows-msvc.exe` |
-| 原生模块 | `node-llama-cpp` 等随 Sidecar 用 `pkg` / `esbuild` 打包进二进制 |
-| 安装包 | Tauri bundler（NSIS / MSI） |
-
-### 7.3 WSL 开发环境
+### 7.2 WSL 开发环境
 
 | 关注点 | 方案 |
 |--------|------|
@@ -814,35 +803,26 @@ bluelamp/
 | RAG 服务 | `http://127.0.0.1:3847`，与生产相同 HTTP API |
 | 仓库路径 | `~/workspace/...`（Linux 文件系统），避免 `/mnt/c/` |
 | 原生模块 | Linux x64-gnu 预编译（pdf-oxide、node-llama-cpp 等） |
-| Tauri 窗口 | 可选；需 WSLg + Rust + apt 依赖，非日常必需 |
-| 模型目录 | `{repo}/models`，与 macOS 开发一致 |
+| Tauri 窗口 | 不在 WSL 作为发布路径；桌面壳在 **Windows 本机**验证 |
+| 模型目录 | `{repo}/models` |
 | 内存 | 建议 `.wslconfig` 分配 ≥ 16 GB（加载模型） |
 
-WSL 下 `BLUELAMP_DATA_DIR` 未设置时，数据目录默认为 `~/.local/share/BlueLamp/`（后续 `paths.ts` 实现）。
+WSL 下未设置 `BLUELAMP_DATA_DIR` 时，与开发约定一致：可用仓库 `.data/`（由 `paths.ts` 解析）。
 
-### 7.4 平台抽象
+### 7.3 平台抽象
 
-Sidecar 通过环境变量接收 Tauri 注入的路径：
+Sidecar 通过环境变量接收路径（便携版由 Tauri 注入）：
 
 ```typescript
-// apps/rag-server/src/platform/paths.ts
-const APP_DATA = process.env.BLUELAMP_DATA_DIR
-  ?? path.join(os.homedir(), 'Library/Application Support/BlueLamp');
-
-export const paths = {
-  data: APP_DATA,
-  models: path.join(APP_DATA, 'models'),
-  db: path.join(APP_DATA, 'data', 'bluelamp.db'),
-};
+// apps/rag-server/src/platform/paths.ts（示意）
+export function getDataDir(): string {
+  return process.env.BLUELAMP_DATA_DIR ?? path.join(getRepoRoot(), '.data');
+}
 ```
 
-Tauri 启动 Sidecar 时注入：
-
 ```rust
-// src-tauri/src/main.rs（示意）
-Command::new_sidecar("rag-server")?
-    .env("BLUELAMP_DATA_DIR", app_data_dir)
-    .spawn()?;
+// apps/desktop/src-tauri/src/lib.rs（示意）
+cmd.env("BLUELAMP_DATA_DIR", &data_dir) // app.path().app_data_dir() → %APPDATA%\piFlow
 ```
 
 前端系统 API（文件对话框等）通过 `@tauri-apps/api` 调用，业务 API 走 HTTP：
@@ -870,7 +850,7 @@ interface PlatformAdapter {
 
 **推荐最低配置**：16 GB RAM，10 GB 可用磁盘空间。
 
-### 8.2 延迟目标（macOS M 系列，本地单用户）
+### 8.2 延迟目标（Windows 本地单用户，参考）
 
 | 阶段 | 目标 |
 |------|------|
@@ -894,7 +874,7 @@ interface PlatformAdapter {
 |------|------|
 | 数据驻留 | 所有文档、向量、会话均存储在本地用户目录 |
 | 网络访问 | 首次/缺失模型时从 **hf-mirror.com** 下载；可配置 `BLUELAMP_HF_MIRROR` |
-| 文件访问 | 通过系统文件对话框显式授权，遵循 macOS sandbox / Windows 权限模型 |
+| 文件访问 | 通过系统文件对话框显式授权，遵循 Windows 权限模型 |
 | 依赖审计 | 定期 `npm audit`，锁定原生模块版本 |
 | 日志 | 默认不记录文档内容；可配置诊断日志级别 |
 
@@ -934,12 +914,12 @@ interface RAGMetrics {
 - [ ] SQLite 持久化
 - [ ] **模型清单** + `pnpm models:ensure` + 启动时 `ensure()`
 
-**macOS 阶段（WSL 功能验收后）**
+**Windows 阶段（功能验收后）**
 
 - [ ] Tauri Sidecar 启停与 `tauri dev` 联调
-- [ ] Sidecar 二进制 macOS 打包（`src-tauri/binaries/`）
-- [ ] Metal 推理性能验证
-- [ ] `tauri build` + 代码签名 / 公证
+- [ ] `pnpm build:windows` 便携包（sidecar zip + BGE-M3）
+- [ ] `%APPDATA%\piFlow\` 数据目录与首次解压验证
+- [ ] Ollama / DeepSeek 生成联调
 
 ### Phase 2 — 体验增强
 
@@ -951,13 +931,13 @@ interface RAGMetrics {
 - [ ] 推理轨迹可视化（Pleias reasoning trace）
 - [ ] 深色模式、快捷键
 
-### Phase 3 — Windows 适配
+### Phase 3 — Windows 增强
 
-- [ ] Sidecar Windows 二进制打包（`pkg` / `esbuild`）
-- [ ] Tauri Windows CI 构建矩阵
+- [ ] 便携包体积优化（裁剪未用原生路径）
+- [ ] 可选 OCR（PP-OCR）随包 / 按需下载
 - [ ] WebView2 运行时检测与提示
-- [ ] CUDA 自动探测与配置
-- [ ] Windows 安装包（NSIS / MSI）
+- [ ] CUDA 自动探测与配置（可选）
+- [ ] 安装器形态评估（NSIS / MSI，需解决大文件限制）
 
 ### Phase 4 — 高级能力
 
@@ -976,11 +956,11 @@ interface RAGMetrics {
 | BGE-M3 在 Node WASM 下加载慢 / 内存高 | 首次体验差 | fp16/q4 量化；Worker 预热；进度提示 |
 | Sidecar 打包跨平台失败 | Windows 延期 | CI 矩阵提前验证；开发期直接用 `node` 启动 |
 | Sidecar 端口冲突 / 启动失败 | 应用不可用 | 动态端口 + health check；UI 展示重试 |
-| Tauri WebView 与系统 WebKit 差异 | UI 兼容问题 | 限定支持的 CSS/JS 特性；macOS/Windows 分别测试 |
+| Tauri WebView 与系统 WebView2 差异 | UI 兼容问题 | 限定支持的 CSS/JS 特性；以 Windows 实机测试为准 |
 | Pleias 输出解析脆弱 | 引用展示异常 | 独立 `pleias-parser` 包 + 快照测试 |
 | pdf-oxide 对扫描 PDF 无 OCR | 提取为空 | 路由到 Docling；UI 提示切换高质量解析 |
 | Docling 模型体积大 / 首次慢 | 导入体验差 | 懒加载；仅复杂文档触发；进度条 |
-| Docling Sidecar 跨平台打包复杂 | Windows 延期 | Phase 2 再接入；macOS 先验证 |
+| Docling Sidecar 跨平台打包复杂 | 发布延期 | Phase 2 再接入；先以 Windows 便携包验证主链路 |
 | `models/bge-m3` 格式错误 / 缺权重 | 嵌入无法加载 | 迁移至 `Xenova/bge-m3` ONNX；manifest 校验 + 自动重下 |
 | 国内网络无法访问 huggingface.co | 模型下载失败 | 默认 hf-mirror.com；`env.remoteHost` 显式配置 |
 | 16 GB 以下内存设备 OOM | 无法运行 | 启动时内存检测；推荐配置提示；考虑 350M 模型降级 |

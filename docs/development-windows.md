@@ -1,6 +1,6 @@
 # Windows 编译与运行清单
 
-> **目标**：在 Windows 本机把 BlueLamp 跑起来（开发态），并打出**可独立运行**的 MSI（含 Node sidecar + BGE-M3）。  
+> **目标**：在 Windows 本机把 piFlow 跑起来（开发态），并打出**可独立运行**的 MSI（含 Node sidecar + BGE-M3）。  
 > **现状**：开发态仍推荐 `pnpm dev:server` + `pnpm dev:ui`；发布用 `pnpm build:windows`（会打包 sidecar、内嵌 BGE-M3，启动时自动起 `rag-server`）。  
 > **远端 LLM**：生成走 Ollama（Settings 配置）；未配置时 Chat 返回检索摘要 + 引用。OCR / 本地 GGUF 首版不进安装包。
 
@@ -165,11 +165,11 @@ pnpm build:windows
 ```
 
 步骤：`bundle:windows-sidecar` → `tauri build --no-bundle` → `package:windows-portable`。  
-`rag-server` 以 zip 随附，首次启动解压到 `%APPDATA%\com.bluelamp.rag-assistant\sidecar\`。
+`rag-server` 以 zip 随附，首次启动解压到 `%APPDATA%\piFlow\sidecar\`。
 
 - [ ] 产物：  
-  `dist-windows\RAG-Assistant\` 与 `dist-windows\RAG-Assistant-0.1.0-portable.zip`
-- [ ] 解压后运行 `RAG Assistant.exe`；无需手起 `pnpm dev:server`
+  `dist-windows\piFlow\` 与 `dist-windows\piFlow-0.1.0-portable.zip`
+- [ ] 解压后运行 `piFlow.exe`；无需手起 `pnpm dev:server`
 - [ ] 未配置 Ollama 时可导入 + 检索摘要；配置 Ollama 后可生成回答
 
 ---
