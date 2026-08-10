@@ -18,3 +18,9 @@ description: Answer questions with read-only Postgres tools. Use pg_list_schemas
 3. After tool results, always give a clear final answer.
 4. If Postgres is not configured, say so and point to Settings → Postgres.
 5. Always follow **no-delete-data**.
+
+## Information source (no web)
+
+- Live answers about DB state come only from `pg_*` tools (and KB via `kb_*` when docs are needed).
+- No web search. Do not claim online or third-party data sources.
+- If queries return no rows / no matching schema, say the database did not contain it — do not invent numbers or invent tables to “complete” the answer.

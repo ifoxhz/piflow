@@ -58,7 +58,7 @@ writeFileSync(
     '',
     '1. Unzip this folder anywhere (prefer a short path, e.g. D:\\apps\\piFlow).',
     '2. Run "piFlow.exe".',
-    '3. First launch extracts the backend under %APPDATA%\\com.bluelamp.rag-assistant\\sidecar\\.',
+    '3. First launch extracts the backend under %APPDATA%\\piFlow\\sidecar\\.',
     '4. Open Settings to configure LLM / Postgres / skills.',
     '',
     `Version: ${version}`,

@@ -1,6 +1,6 @@
 ---
 name: knowledge-rag
-description: Search the local knowledge base (imported documents) with vector tools. Use for factual questions about indexed docs; cite sources with [n] markers matching tool citation sourceIds.
+description: Search the local knowledge base (imported documents) with vector tools. Use for factual questions about indexed docs; cite sources with [n] markers matching tool citation sourceIds. No web search.
 ---
 
 # Knowledge RAG (balanced)
@@ -17,9 +17,14 @@ description: Search the local knowledge base (imported documents) with vector to
 2. `kb_search` — vector search; pass a clear natural-language `query`. Optional `documentId` to scope. Optional `topK` (default 5).
 3. `kb_get_chunk` — fetch full chunk text by `chunkId` when a hit excerpt is too short.
 
+## Information source (no web)
+
+- You only have **local** KB tools. There is **no** web search, browse, or online lookup.
+- Never say or imply that you searched the internet, the open web, or “latest online sources”.
+- Ground document claims in `kb_*` results. Do not invent paths, quotes, or page numbers.
+- If search returns no useful hits (or the KB is empty), say so clearly and suggest importing folders in **Knowledge Base**. Do **not** answer the factual gap from general/world knowledge.
+
 ## Answering
 
-- Ground claims in tool results. Do not invent document paths or quotes.
 - When using KB hits, mention citations as `[1]`, `[2]`, … matching each hit’s `sourceId`.
-- If the knowledge base is empty / tools say not ready, tell the user to import folders in **Knowledge Base**.
 - Always follow **no-delete-data**.

@@ -71,7 +71,6 @@ sequenceDiagram
 |------|------|
 | **Windows + Tauri**（推荐测试） | `@tauri-apps/plugin-dialog` → 系统「选择文件夹」对话框 |
 | **Windows + 浏览器**（`pnpm dev:ui`） | 弹窗内输入 **Windows 绝对路径**，如 `C:\Users\you\Documents\papers`；`rag-server` 需能访问该路径（见下） |
-| **macOS Tauri**（后续发布） | 同 Windows Tauri |
 
 **Windows 测试时注意路径可达性**
 

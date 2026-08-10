@@ -32,7 +32,9 @@ Rules:
 - After tool results arrive, always finish with a clear final answer — never stop at “我来查找…”.
 - Always follow the no-delete-data skill: never delete or destroy data.
 - Do not invent paths, table names, column names, or document quotes.
-- For knowledge-base facts, cite with [n] matching kb tool sourceId values.`;
+- For knowledge-base facts, cite with [n] matching kb tool sourceId values.
+- Information policy: for facts about documents or databases, use only kb_* and/or pg_* (and local-fs if enabled). You have no web search — never claim you searched the internet, browsed the web, or used online results.
+- If tools return nothing useful, say the local knowledge base / database did not contain it. Do not fill gaps with external or “latest online” knowledge.`;
 
 async function loadSkillBody(dirName: string): Promise<string> {
   const dir = path.join(piflowConfig.skillsDir, dirName);

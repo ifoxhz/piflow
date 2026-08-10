@@ -5,7 +5,7 @@
 
 ## 背景
 
-BlueLamp 需要从 PDF、DOCX、Markdown 等格式摄取文档并分块，供 BGE-M3 嵌入与 Pleias 引用溯源。需在解析质量、运行时依赖与 Tauri + Node Sidecar 架构之间取得平衡。
+piFlow 需要从 PDF、DOCX、Markdown 等格式摄取文档并分块，供 BGE-M3 嵌入与 Pleias 引用溯源。需在解析质量、运行时依赖与 Tauri + Node Sidecar 架构之间取得平衡。
 
 ## 决策
 

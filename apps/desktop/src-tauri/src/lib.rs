@@ -83,7 +83,7 @@ fn extract_zip(zip_path: &Path, dest: &Path) -> Result<(), String> {
     Ok(())
 }
 
-/// Unpack rag-server.zip into %APPDATA%/…/sidecar when missing or bundle version changed.
+/// Unpack rag-server.zip into %APPDATA%/piFlow/sidecar when missing or bundle version changed.
 fn ensure_rag_server_dir(app: &AppHandle) -> Result<PathBuf, String> {
     let resource_dir = app
         .path()

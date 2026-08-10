@@ -5,7 +5,7 @@
 
 ## 背景
 
-BlueLamp 需要一款跨平台桌面壳，承载 React UI，同时运行依赖 Node 原生模块的 RAG 后端（`node-llama-cpp`、`better-sqlite3`、`@huggingface/transformers`）。
+piFlow 需要一款跨平台桌面壳，承载 React UI，同时运行依赖 Node 原生模块的 RAG 后端（`node-llama-cpp`、`better-sqlite3`、`@huggingface/transformers`）。
 
 曾评估 Electron（体积过大）、Neutralino.js（生态较小、仍需 Sidecar 跑 Node）。
 
@@ -21,7 +21,7 @@ BlueLamp 需要一款跨平台桌面壳，承载 React UI，同时运行依赖 N
 
 1. 安装包体积小（~5–10 MB 壳 + Sidecar 二进制），无捆绑 Chromium
 2. 无需在 Rust 中重写 RAG 逻辑；Rust 代码量极少
-3. 官方 Sidecar 支持，Windows/macOS 打包工具链成熟
+3. 官方 Sidecar / 资源打包支持，**Windows** 便携分发工具链可用
 4. 开发期可直接 `node apps/rag-server` 调试，无需每次编译 Rust
 
 ## 后果

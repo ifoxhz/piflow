@@ -1,6 +1,6 @@
 # WSL 开发指南
 
-> **策略**：在 WSL 完成全部功能开发与测试，功能稳定后再在 **macOS** 上打包、签名与分发。
+> **策略**：可用 WSL 做 Node 后端与浏览器 UI 开发；**Windows 桌面壳与便携包**在 Windows 本机验证与发布（见 [development-windows.md](development-windows.md)）。不把未验证的其它桌面平台当作发布目标。
 
 ---
 
@@ -8,9 +8,8 @@
 
 | 阶段 | 环境 | 运行方式 |
 |------|------|----------|
-| **日常开发** | WSL2 | 浏览器 + `rag-server`（推荐，无需 Rust） |
-| **可选预览** | WSL2 + WSLg | `pnpm tauri dev`（需 Linux 图形与 Rust 工具链） |
-| **发布打包** | macOS | `pnpm tauri build` + Sidecar 二进制 + 公证 |
+| **日常开发** | WSL2 或 Windows | 浏览器 + `rag-server`（推荐，无需 Rust） |
+| **桌面壳 / 打包** | Windows 本机 | `pnpm tauri dev` / `pnpm build:windows` |
 
 WSL 阶段**不阻塞**在 Tauri/Rust 上：UI 用 Vite 在浏览器调试，与 Tauri WebView 共用同一套 React 代码。
 
@@ -28,7 +27,7 @@ node -v   # >= 20
 corepack enable && corepack prepare pnpm@latest --activate
 
 # 项目依赖
-cd ~/workspace/github/bluelamp   # 建议放在 Linux 文件系统，勿用 /mnt/c/
+cd ~/workspace/github/raglamp   # 建议放在 Linux 文件系统，勿用 /mnt/c/
 pnpm install
 ```
 
@@ -42,20 +41,9 @@ pnpm install
 export HF_ENDPOINT=https://hf-mirror.com
 ```
 
-### 2.3 可选（仅在 WSL 要跑 Tauri 窗口时）
+### 2.3 可选说明
 
-```bash
-# Rust
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-
-# Tauri Linux 依赖（Ubuntu/Debian WSL）
-sudo apt update
-sudo apt install -y \
-  libwebkit2gtk-4.1-dev build-essential curl wget file \
-  libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
-```
-
-需要 **Windows 11 + WSLg** 才能在 WSL 里弹出桌面窗口。若无图形环境，继续用浏览器开发即可。
+不要在 WSL 里交叉编译 Windows 便携包。桌面窗口与 `pnpm build:windows` 请在 **Windows 本机**完成。
 
 ---
 
@@ -94,18 +82,15 @@ curl http://127.0.0.1:3847/health
 
 ---
 
-## 4. WSL 与 macOS 差异
+## 4. WSL 与 Windows 差异
 
-| 项目 | WSL（开发） | macOS（发布） |
-|------|-------------|---------------|
-| UI 调试 | Chrome / Edge 访问 `:1420` | Tauri WebView 或浏览器 |
-| Pleias 加速 | CPU（llama.cpp） | Metal（Apple Silicon） |
-| Sidecar 二进制 | `rag-server-x86_64-unknown-linux-gnu` | `rag-server-aarch64-apple-darwin` 等 |
-| pdf-oxide | `linux-x64-gnu` 预编译包 | `darwin-arm64` 预编译包 |
-| 模型目录 | `{repo}/models` | 同上（开发）；生产用 Application Support |
-| Tauri 打包 | 可忽略 | **必须**在 macOS 上 `tauri build` |
-
-**不要在 WSL 里交叉编译 macOS 安装包**。Tauri 的 `.app` / 公证只在 macOS 上完成。
+| 项目 | WSL（开发） | Windows（桌面 / 发布） |
+|------|-------------|------------------------|
+| UI 调试 | Chrome / Edge 访问 `:1420` | 浏览器或 Tauri WebView |
+| 加速 | CPU（llama.cpp / ONNX） | CPU；可选远端 Ollama / DeepSeek |
+| 原生模块 | `linux-x64-gnu` 预编译 | Windows x64 预编译 |
+| 模型目录 | `{repo}/models` | 同上（开发）；便携版随包 / AppData |
+| Tauri 打包 | 不做 | `pnpm build:windows` → `dist-windows/piFlow/` |
 
 ---
 
@@ -114,20 +99,18 @@ curl http://127.0.0.1:3847/health
 在 WSL 可完整开发与测试：
 
 - [x] Monorepo + UI + `rag-server` 骨架
-- [ ] `pnpm models:ensure` 下载 Xenova/bge-m3、Pleias GGUF
-- [ ] BGE-M3 嵌入（Transformers.js WASM）
+- [ ] `pnpm models:ensure` 下载 Xenova/bge-m3 等
+- [ ] BGE-M3 嵌入
 - [ ] pdf-oxide 文档导入
-- [ ] Pleias 推理（node-llama-cpp，CPU）
 - [ ] SQLite + 向量检索
-- [ ] 对话流式输出 + 引用
+- [ ] piFlow 对话 + 引用
+- [ ] 生成后端（Ollama / DeepSeek）
 
-留到 **macOS 阶段**再验证：
+留到 **Windows 本机**再验证：
 
-- [ ] Tauri `tauri dev` / `tauri build`
-- [ ] Metal 推理性能
-- [ ] Sidecar 随 `.app` 打包
-- [ ] 代码签名与公证
-- [ ] 安装包分发
+- [ ] Tauri `tauri dev` / 系统选文件夹
+- [ ] `pnpm build:windows` 便携包
+- [ ] `%APPDATA%\piFlow\` 数据与 sidecar 解压
 
 ---
 
@@ -148,36 +131,7 @@ cp .env.example .env
 
 ---
 
-## 7. 迁移到 macOS 发布清单
-
-功能在 WSL 验收通过后，在 Mac 上执行：
-
-```bash
-# 1. 克隆/同步代码
-git pull
-
-# 2. 安装依赖
-pnpm install
-
-# 3. 下载模型（若未同步 models/ 目录）
-export HF_ENDPOINT=https://hf-mirror.com
-pnpm models:ensure
-
-# 4. 安装 Rust + Tauri 前置（见 https://tauri.app/start/prerequisites/）
-
-# 5. 开发验证
-pnpm dev:server
-cd apps/desktop && pnpm tauri dev
-
-# 6. 打包
-cd apps/desktop && pnpm tauri build
-```
-
-Sidecar 需在 macOS 上单独构建并放入 `src-tauri/binaries/`（后续 CI 脚本会自动化）。
-
----
-
-## 8. 常见问题
+## 7. 常见问题
 
 ### 端口访问不到
 
@@ -202,4 +156,4 @@ swap=8GB
 
 ### 不在 WSL 装 Rust 可以吗？
 
-可以。WSL 阶段只用 `pnpm dev:ui` + `pnpm dev:server` 即可完成绝大部分开发。
+可以。WSL 阶段只用 `pnpm dev:ui` + `pnpm dev:server` 即可完成绝大部分开发。桌面打包见 [development-windows.md](development-windows.md)。
