@@ -30,7 +30,7 @@ function parseMeta(raw: string): ChunkMetadata {
 function hitToCitation(chunk: ScoredChunk, index: number): Citation {
   return {
     sourceId: `[${index + 1}]`,
-    quote: truncateCitationQuote(chunk.content, 280),
+    quote: truncateCitationQuote(chunk.content, 140),
     documentId: chunk.documentId,
     documentTitle: chunk.documentTitle,
     sourcePath: chunk.sourcePath,
@@ -44,7 +44,7 @@ function rowToCitation(row: StoredChunkRow, index: number): Citation {
   const meta = parseMeta(row.metadata_json);
   return {
     sourceId: `[${index + 1}]`,
-    quote: truncateCitationQuote(row.content, 280),
+    quote: truncateCitationQuote(row.content, 140),
     documentId: row.document_id,
     documentTitle: row.document_title,
     sourcePath: row.source_path,

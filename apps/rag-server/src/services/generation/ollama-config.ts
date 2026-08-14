@@ -18,9 +18,9 @@ function configPath(): string {
 
 function fromEnv(): OllamaRuntimeConfig {
   return {
-    url: (process.env.BLUELAMP_OLLAMA_URL ?? '').trim().replace(/\/$/, ''),
-    model: (process.env.BLUELAMP_OLLAMA_MODEL ?? DEFAULT_MODEL).trim() || DEFAULT_MODEL,
-    modelZh: (process.env.BLUELAMP_OLLAMA_MODEL_ZH ?? '').trim(),
+    url: (process.env.PIFLOW_OLLAMA_URL ?? '').trim().replace(/\/$/, ''),
+    model: (process.env.PIFLOW_OLLAMA_MODEL ?? DEFAULT_MODEL).trim() || DEFAULT_MODEL,
+    modelZh: (process.env.PIFLOW_OLLAMA_MODEL_ZH ?? '').trim(),
   };
 }
 
@@ -28,15 +28,15 @@ let runtime: OllamaRuntimeConfig = fromEnv();
 
 function syncEnv(next: OllamaRuntimeConfig): void {
   if (next.url) {
-    process.env.BLUELAMP_OLLAMA_URL = next.url;
+    process.env.PIFLOW_OLLAMA_URL = next.url;
   } else {
-    delete process.env.BLUELAMP_OLLAMA_URL;
+    delete process.env.PIFLOW_OLLAMA_URL;
   }
-  process.env.BLUELAMP_OLLAMA_MODEL = next.model;
+  process.env.PIFLOW_OLLAMA_MODEL = next.model;
   if (next.modelZh) {
-    process.env.BLUELAMP_OLLAMA_MODEL_ZH = next.modelZh;
+    process.env.PIFLOW_OLLAMA_MODEL_ZH = next.modelZh;
   } else {
-    delete process.env.BLUELAMP_OLLAMA_MODEL_ZH;
+    delete process.env.PIFLOW_OLLAMA_MODEL_ZH;
   }
 }
 

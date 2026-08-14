@@ -11,7 +11,7 @@ import {
 import type { QueryTemplate } from './query-templates.js';
 import { routeQueryTemplate } from './template-router.js';
 
-const PLAN_TIMEOUT_MS = Number(process.env.BLUELAMP_PLAN_TIMEOUT_MS ?? 30_000);
+const PLAN_TIMEOUT_MS = Number(process.env.PIFLOW_PLAN_TIMEOUT_MS ?? 30_000);
 const MAX_HISTORY_MESSAGES = 6;
 const MAX_HISTORY_CHARS = 2000;
 

@@ -60,7 +60,7 @@ export interface PipelineTimingEntry {
     finalTopK?: number;
     /** Per dense-query retrieve depth before merge. */
     perQueryK?: number;
-    /** Router score below BLUELAMP_TEMPLATE_SCORE_MIN. */
+    /** Router score below PIFLOW_TEMPLATE_SCORE_MIN. */
     lowConfidence?: boolean;
     chunkCount: number;
     generation?: 'ollama' | 'deepseek' | 'local-llm' | 'pleias' | 'retrieval-fallback' | 'none';

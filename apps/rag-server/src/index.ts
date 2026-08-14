@@ -16,7 +16,7 @@ import { getLlmProvider, loadLlmConfig } from './services/piflow/llm-settings.js
 import { isPostgresConfigured } from './services/piflow/postgres-settings.js';
 
 const fileLog = initFileLogger();
-const PORT = Number(process.env.BLUELAMP_RAG_PORT ?? 3847);
+const PORT = Number(process.env.PIFLOW_RAG_PORT ?? 3847);
 
 const app = new Hono();
 
@@ -63,7 +63,7 @@ console.log(`[rag-server] log file → ${fileLog.logFile}`);
 if (isOllamaConfigured()) {
   console.log(`[rag-server] Ollama generation → ${getOllamaUrl()}`);
 } else {
-  console.log('[rag-server] Ollama not configured (set via Settings or BLUELAMP_OLLAMA_URL)');
+  console.log('[rag-server] Ollama not configured (set via Settings or PIFLOW_OLLAMA_URL)');
 }
 console.log(`[rag-server] piFlow LLM provider → ${getLlmProvider()}`);
 console.log(

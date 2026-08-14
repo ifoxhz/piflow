@@ -24,3 +24,5 @@ models/**/*.safetensors
 .cache/
 .data/
 *.tsbuildinfo
+
+.tmp-extract-check/

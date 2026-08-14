@@ -533,11 +533,11 @@ import { env, pipeline } from '@huggingface/transformers';
 
 function configureModelMirror() {
   const host = process.env.HF_ENDPOINT
-    ?? process.env.BLUELAMP_HF_MIRROR
+    ?? process.env.PIFLOW_HF_MIRROR
     ?? 'https://hf-mirror.com';
   env.remoteHost = host.endsWith('/') ? host : `${host}/`;
   env.allowLocalModels = true;
-  env.localModelPath = process.env.BLUELAMP_MODELS_DIR
+  env.localModelPath = process.env.PIFLOW_MODELS_DIR
     ?? path.resolve(process.cwd(), 'models');
   // Dev: local-first; allowRemoteModels triggers mirror download when files are missing
   env.allowRemoteModels = true;
@@ -603,10 +603,10 @@ Scripts prefer `huggingface-cli` (with `HF_ENDPOINT`); without CLI, fall back to
 
 #### 4.7.6 Path Conventions
 
-| Environment | `BLUELAMP_MODELS_DIR` / `env.localModelPath` |
+| Environment | `PIFLOW_MODELS_DIR` / `env.localModelPath` |
 |------|-----------------------------------------------|
 | Development (in-repo) | `{repoRoot}/models` |
-| Production (user dir) | `%APPDATA%\piFlow\` (portable shell injects `BLUELAMP_DATA_DIR`; models often ship with / beside the package) |
+| Production (user dir) | `%APPDATA%\piFlow\` (portable shell injects `PIFLOW_DATA_DIR`; models often ship with / beside the package) |
 
 When Transformers.js loads a local model, `pipeline('feature-extraction', 'Xenova/bge-m3')` resolves to `{localModelPath}/Xenova/bge-m3/`.
 
@@ -678,7 +678,7 @@ sequenceDiagram
 ## 6. Directory Structure (Suggested)
 
 ```
-bluelamp/
+piflow/
 ├── apps/
 │   ├── desktop/                    # Tauri 2 desktop app
 │   │   ├── src/                    # React frontend (WebView)
@@ -789,7 +789,7 @@ Detailed commands: [development-wsl.md](development-wsl.md), [development-window
 |--------|------|
 | WebView | WebView2 (built into Tauri) |
 | Hardware acceleration | Embedding: ONNX CPU; generation: Ollama / DeepSeek (optional local GGUF) |
-| User data path | `%APPDATA%\piFlow\` (`BLUELAMP_DATA_DIR`) |
+| User data path | `%APPDATA%\piFlow\` (`PIFLOW_DATA_DIR`) |
 | Models | Dev: `{repo}/models`; portable: resource / user directory |
 | Sidecar | Zip extract to `%APPDATA%\piFlow\sidecar\`; embedded `node.exe` lifecycle |
 | Memory recommendation | ≥ 16 GB RAM |
@@ -808,7 +808,7 @@ Detailed commands: [development-wsl.md](development-wsl.md), [development-window
 | Model directory | `{repo}/models` |
 | Memory | Recommend `.wslconfig` ≥ 16 GB (for model load) |
 
-When `BLUELAMP_DATA_DIR` is unset under WSL, follow the dev convention: repo `.data/` (resolved by `paths.ts`).
+When `PIFLOW_DATA_DIR` is unset under WSL, follow the dev convention: repo `.data/` (resolved by `paths.ts`).
 
 ### 7.3 Platform Abstraction
 
@@ -817,13 +817,14 @@ The Sidecar receives paths via environment variables (injected by Tauri in the p
 ```typescript
 // apps/rag-server/src/platform/paths.ts (illustrative)
 export function getDataDir(): string {
-  return process.env.BLUELAMP_DATA_DIR ?? path.join(getRepoRoot(), '.data');
+  return process.env.PIFLOW_DATA_DIR ?? path.join(getRepoRoot(), '.data');
 }
+// SQLite: prefer piflow.db; auto-rename legacy bluelamp.db when present
 ```
 
 ```rust
 // apps/desktop/src-tauri/src/lib.rs (illustrative)
-cmd.env("BLUELAMP_DATA_DIR", &data_dir) // app.path().app_data_dir() → %APPDATA%\piFlow
+cmd.env("PIFLOW_DATA_DIR", &data_dir) // app.path().app_data_dir() → %APPDATA%\piFlow
 ```
 
 Frontend system APIs (file dialogs, etc.) go through `@tauri-apps/api`; business APIs use HTTP:
@@ -874,7 +875,7 @@ interface PlatformAdapter {
 | Dimension | Policy |
 |------|------|
 | Data residency | All documents, vectors, and sessions stay in the local user directory |
-| Network access | First-run / missing models download from **hf-mirror.com**; configurable via `BLUELAMP_HF_MIRROR` |
+| Network access | First-run / missing models download from **hf-mirror.com**; configurable via `PIFLOW_HF_MIRROR` |
 | File access | Explicit grant via system file dialogs; follows Windows permission model |
 | Dependency audit | Regular `npm audit`; pin native module versions |
 | Logging | Default: do not log document content; configurable diagnostic log levels |

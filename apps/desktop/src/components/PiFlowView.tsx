@@ -36,6 +36,8 @@ export function PiFlowView({
   const bottomRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const loadGenRef = useRef(0);
+  /** True while a turn is streaming; prevents sessionId bind from wiping live messages. */
+  const sendingRef = useRef(false);
 
   const reloadSkills = useCallback(async () => {
     try {
@@ -56,6 +58,10 @@ export function PiFlowView({
   }, [reloadSkills]);
 
   useEffect(() => {
+    // First status of a null-session turn assigns sessionId; reloading here would
+    // replace the optimistic user/assistant bubbles and drop all SSE updates.
+    if (sendingRef.current) return;
+
     const gen = ++loadGenRef.current;
     setLastTurnStats(null);
     setError(null);
@@ -91,6 +97,7 @@ export function PiFlowView({
     if (!text || sending) return;
 
     setSending(true);
+    sendingRef.current = true;
     setError(null);
     setInput('');
     setToolCount(0);
@@ -121,6 +128,7 @@ export function PiFlowView({
         sessionId,
         {
           onStatus: (data) => {
+            // Bind sidebar to the server-created session without reloading messages mid-stream.
             if (data.sessionId) onSessionIdChange(data.sessionId);
             if (typeof data.toolBudget === 'number') setToolBudget(data.toolBudget);
             if (typeof data.toolCount === 'number') setToolCount(data.toolCount);
@@ -229,6 +237,7 @@ export function PiFlowView({
         );
       }
     } finally {
+      sendingRef.current = false;
       setSending(false);
       abortRef.current = null;
     }

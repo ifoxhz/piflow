@@ -1,10 +1,12 @@
 import type { ChatSession, Message } from '@bluelamp/core';
 
-const STORAGE_KEY = 'bluelamp-chat-sessions';
+const STORAGE_KEY = 'piflow-chat-sessions';
+const LEGACY_STORAGE_KEY = 'bluelamp-chat-sessions';
 
 export function loadSessions(): ChatSession[] {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw =
+      localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem(LEGACY_STORAGE_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw) as ChatSession[];
     return Array.isArray(parsed) ? parsed : [];
@@ -15,6 +17,7 @@ export function loadSessions(): ChatSession[] {
 
 export function saveSessions(sessions: ChatSession[]): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
+  localStorage.removeItem(LEGACY_STORAGE_KEY);
 }
 
 export function sessionTitleFromMessage(text: string, maxLen = 48): string {

@@ -7,7 +7,7 @@ export const QUERY_PREFIX =
   'Represent this sentence for searching relevant passages: ';
 
 /** UI/SSE cadence: 1 ≈ every chunk (~2s on CPU) for continuous progress. */
-const PROGRESS_EVERY = Number(process.env.BLUELAMP_EMBED_PROGRESS_EVERY ?? 1);
+const PROGRESS_EVERY = Number(process.env.PIFLOW_EMBED_PROGRESS_EVERY ?? 1);
 
 export type EmbedOptions = {
   label?: string;
@@ -45,7 +45,7 @@ function ensureWorker(): Worker {
     workerData: {
       modelsDir: getModelsDir(),
       hfHost:
-        process.env.HF_ENDPOINT ?? process.env.BLUELAMP_HF_MIRROR ?? 'https://hf-mirror.com',
+        process.env.HF_ENDPOINT ?? process.env.PIFLOW_HF_MIRROR ?? 'https://hf-mirror.com',
       progressEvery: PROGRESS_EVERY,
     },
     execArgv: isTs ? [...process.execArgv] : [],

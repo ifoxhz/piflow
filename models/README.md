@@ -69,7 +69,7 @@ models/
 
 ## 生产环境缓存
 
-打包发布后，用户数据目录由壳注入（`BLUELAMP_DATA_DIR`），Windows 便携版为：
+打包发布后，用户数据目录由壳注入（`PIFLOW_DATA_DIR`），Windows 便携版为：
 
 - Windows: `%APPDATA%\piFlow\`（模型亦可随便携包 `models/` 分发）
 

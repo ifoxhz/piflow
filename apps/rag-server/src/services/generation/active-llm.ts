@@ -10,7 +10,7 @@ import {
 import { buildRagInstructPrompt, type RagPromptOptions } from './rag-instruct-prompt.js';
 import { getDeepseekRuntime, getLlmProvider } from '../piflow/llm-settings.js';
 
-const GENERATION_TIMEOUT_MS = Number(process.env.BLUELAMP_CHAT_TIMEOUT_MS ?? 180_000);
+const GENERATION_TIMEOUT_MS = Number(process.env.PIFLOW_CHAT_TIMEOUT_MS ?? 180_000);
 
 export type ActiveLlmBackend = 'ollama' | 'deepseek';
 

@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# Stop any rag-server on BLUELAMP_RAG_PORT, then start pnpm dev:server.
+# Stop any rag-server on PIFLOW_RAG_PORT, then start pnpm dev:server.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-PORT="${BLUELAMP_RAG_PORT:-3847}"
+PORT="${PIFLOW_RAG_PORT:-3847}"
 
 if [ -f "$ROOT/.env" ]; then
-  line="$(grep -E '^BLUELAMP_RAG_PORT=' "$ROOT/.env" | tail -1 || true)"
+  line="$(grep -E '^PIFLOW_RAG_PORT=' "$ROOT/.env" | tail -1 || true)"
   if [ -n "$line" ]; then
-    PORT="${line#BLUELAMP_RAG_PORT=}"
+    PORT="${line#PIFLOW_RAG_PORT=}"
     PORT="${PORT//\"/}"
     PORT="${PORT//\'/}"
   fi

@@ -5,7 +5,7 @@ import type { ScoredChunk } from '../retrieval/retriever.js';
 import { buildPleiasPrompt, parsePleiasOutput } from './pleias-prompt.js';
 import type { RagPromptOptions } from './rag-instruct-prompt.js';
 
-const GENERATION_TIMEOUT_MS = Number(process.env.BLUELAMP_CHAT_TIMEOUT_MS ?? 120_000);
+const GENERATION_TIMEOUT_MS = Number(process.env.PIFLOW_CHAT_TIMEOUT_MS ?? 120_000);
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let completion: any = null;

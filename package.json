@@ -1,5 +1,5 @@
 {
-  "name": "bluelamp",
+  "name": "piflow",
   "private": true,
   "version": "0.1.0",
   "description": "Local RAG desktop app — Pleias-RAG-1B + BGE-M3",
@@ -13,6 +13,7 @@
     "models:download": "tsx scripts/models-ensure.ts --force",
     "bundle:windows-sidecar": "node scripts/bundle-windows-sidecar.mjs",
     "package:windows-portable": "node scripts/package-windows-portable.mjs",
+    "seed:empty-db": "node scripts/prepare-empty-piflow-db.mjs",
     "build:windows": "pnpm bundle:windows-sidecar && pnpm --filter @bluelamp/desktop exec tauri build --no-bundle && pnpm package:windows-portable"
   },
   "devDependencies": {

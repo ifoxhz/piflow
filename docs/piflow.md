@@ -66,7 +66,7 @@
 │  Tools: kb_* · pg_* · (read/bash/…)                          │
 └───────────┬─────────────────────┬────────────────────────────┘
             ▼                     ▼
-     bluelamp.db chunks      Postgres / 本地工作区
+     piflow.db chunks      Postgres / 本地工作区
 ```
 
 ### 2.1 与旧 RAG Chat 的关系
@@ -220,7 +220,7 @@ Settings → **模型配置**：Ollama / DeepSeek 互斥。当前提供方用于
 
 | 位置 | 用途 |
 |------|------|
-| `bluelamp.db` → `chunks` / `documents` | 知识库 |
+| `piflow.db` → `chunks` / `documents` | 知识库 |
 | `piflow_sessions` / `piflow_messages`（+ `citations_json`） | Agent 会话 |
 | `piflow-skills.json` | 含 `knowledge.enabled` |
 | `llm-config.json` / `ollama-config.json` / `postgres-config.json` | 配置 |

@@ -26,7 +26,7 @@ import {
   type ScoredChunk,
 } from '../retrieval/retriever.js';
 
-const USE_LOCAL_PLEIAS = process.env.BLUELAMP_USE_PLEIAS === 'true';
+const USE_LOCAL_PLEIAS = process.env.PIFLOW_USE_PLEIAS === 'true';
 
 export interface AskOptions {
   /** When true: LLM builds RetrievalPlan then multi-query search. When false: raw query → vector search. */

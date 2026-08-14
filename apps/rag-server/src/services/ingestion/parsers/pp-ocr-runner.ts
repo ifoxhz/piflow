@@ -18,7 +18,7 @@ type Pending = {
   timer: ReturnType<typeof setTimeout>;
 };
 
-const OCR_TIMEOUT_MS = Number(process.env.BLUELAMP_OCR_TIMEOUT_MS ?? 120_000);
+const OCR_TIMEOUT_MS = Number(process.env.PIFLOW_OCR_TIMEOUT_MS ?? 120_000);
 
 let child: ChildProcess | null = null;
 let nextId = 1;

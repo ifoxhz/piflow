@@ -2,7 +2,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
 const host = process.env.TAURI_DEV_HOST;
-const ragPort = process.env.BLUELAMP_RAG_PORT ?? "3847";
+const ragPort = process.env.PIFLOW_RAG_PORT ?? "3847";
 
 export default defineConfig(async () => ({
   plugins: [react()],

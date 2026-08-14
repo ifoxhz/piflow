@@ -5,7 +5,7 @@ import { isChineseQuery, isPleiasModelName } from './language.js';
 import { buildPleiasPrompt, parsePleiasOutput } from './pleias-prompt.js';
 import { buildRagInstructPrompt, type RagPromptOptions } from './rag-instruct-prompt.js';
 
-const GENERATION_TIMEOUT_MS = Number(process.env.BLUELAMP_CHAT_TIMEOUT_MS ?? 180_000);
+const GENERATION_TIMEOUT_MS = Number(process.env.PIFLOW_CHAT_TIMEOUT_MS ?? 180_000);
 
 export function getOllamaUrl(): string {
   return getOllamaRuntimeConfig().url;
