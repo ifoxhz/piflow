@@ -10,7 +10,7 @@ The main chat is driven by the **piFlow Agent** (Pi harness): the knowledge base
 
 UI design preview: [docs/index.png](docs/index.png)
 
-<video src="docs/piFlow-full-middle-3x.mp4" controls muted loop></video>
+[![Watch the demo video](docs/index.png)](docs/piFlow-full-middle-3x.mp4)
 
 ## Features
 
