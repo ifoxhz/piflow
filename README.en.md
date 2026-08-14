@@ -8,9 +8,9 @@ piFlow is a retrieval-augmented generation (RAG) desktop application: import loc
 
 The main chat is driven by the **piFlow Agent** (Pi harness): the knowledge base is exposed as Skill / Tools (`kb_*`), with optional Postgres read-only and local filesystem Skills.
 
-UI design preview: [docs/index.png](docs/index.png)
+![Demo video](docs/piFlow-full-middle-3x.gif)
 
-[![Watch the demo video](docs/index.png)](docs/piFlow-full-middle-3x.mp4)
+[Watch full-quality video](docs/piFlow-full-middle-3x.mp4)
 
 ## Features
 

@@ -8,9 +8,9 @@ piFlow 是一款检索增强生成（RAG）桌面应用：导入本地文档构�
 
 主对话由 **piFlow Agent**（Pi harness）驱动：知识库以 Skill / Tools（`kb_*`）挂载，并可选用 Postgres 只读与本地文件 Skill。
 
-UI 设计预览：[docs/index.png](docs/index.png)
+![运行效果视频](docs/piFlow-full-middle-3x.gif)
 
-[![观看演示视频](docs/index.png)](docs/piFlow-full-middle-3x.mp4)
+[观看高清视频](docs/piFlow-full-middle-3x.mp4)
 
 ## 特性
 
