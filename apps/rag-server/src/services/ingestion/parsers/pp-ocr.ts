@@ -65,7 +65,7 @@ export function dictionaryFromInferenceYml(yml: string): string[] {
 }
 
 function ocrModelRoot(): string {
-  return process.env.BLUELAMP_PADDLEOCR_DIR ?? path.join(getModelsDir(), 'paddleocr');
+  return process.env.PIFLOW_PADDLEOCR_DIR ?? path.join(getModelsDir(), 'paddleocr');
 }
 
 async function fileExists(p: string): Promise<boolean> {

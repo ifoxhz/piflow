@@ -5,7 +5,7 @@ import { elapsedMs, nowMs } from '../chat/llm-query-log.js';
 import { embedQuery } from '../ingestion/embedder.js';
 
 const DEFAULT_TOP_K = 5;
-const CITATION_QUOTE_MAX_CHARS = 280;
+const CITATION_QUOTE_MAX_CHARS = 140;
 
 export interface RetrieveTiming {
   chunks: ScoredChunk[];

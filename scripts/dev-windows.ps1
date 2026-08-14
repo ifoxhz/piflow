@@ -1,4 +1,4 @@
-# Start BlueLamp Windows dev (rag-server + Vite UI)
+# Start piFlow Windows dev (rag-server + Vite UI)
 # Usage: powershell -ExecutionPolicy Bypass -File D:\dev\raglamp\scripts\dev-windows.ps1
 
 $ErrorActionPreference = 'Stop'

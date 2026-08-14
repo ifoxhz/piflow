@@ -1,1 +1,0 @@
-﻿BlueLamp Windows smoke test. The capital of France is Paris. RAG means Retrieval Augmented Generation.

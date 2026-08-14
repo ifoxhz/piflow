@@ -45,18 +45,22 @@ function rmIfExists(p) {
   if (existsSync(p)) rmSync(p, { recursive: true, force: true });
 }
 
-function patchCorePackageExports(ragOut) {
+function patchWorkspacePackageExports(ragOut, pkgName) {
+  const short = pkgName.replace(/^@/, '').replace('/', '+'); // @bluelamp/core → bluelamp+core
+  const folder = pkgName.split('/')[1]; // core | pg-actions
   const candidates = [];
-  const link = path.join(ragOut, 'node_modules/@bluelamp/core/package.json');
+  const link = path.join(ragOut, 'node_modules', pkgName, 'package.json');
   if (existsSync(link)) candidates.push(link);
   const pnpmDir = path.join(ragOut, 'node_modules/.pnpm');
   if (existsSync(pnpmDir)) {
     for (const name of readdirSync(pnpmDir)) {
-      if (!name.startsWith('@bluelamp+core@')) continue;
+      if (!name.startsWith(`@${short}@`) && !name.startsWith(`${short}@`)) continue;
       const pkgPath = path.join(
         pnpmDir,
         name,
-        'node_modules/@bluelamp/core/package.json',
+        'node_modules',
+        pkgName,
+        'package.json',
       );
       if (existsSync(pkgPath)) candidates.push(pkgPath);
     }
@@ -67,7 +71,7 @@ function patchCorePackageExports(ragOut) {
     seen.add(pkgPath);
     const dir = path.dirname(pkgPath);
     if (!existsSync(path.join(dir, 'dist/index.js'))) {
-      throw new Error(`@bluelamp/core missing dist at ${dir}`);
+      throw new Error(`${pkgName} missing dist at ${dir}`);
     }
     const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
     pkg.main = './dist/index.js';
@@ -80,11 +84,19 @@ function patchCorePackageExports(ragOut) {
       },
     };
     writeFileSync(pkgPath, JSON.stringify(pkg, null, 2));
-    log(`patched core exports → ${pkgPath}`);
+    log(`patched ${pkgName} exports → ${pkgPath}`);
   }
   if (seen.size === 0) {
-    throw new Error('@bluelamp/core not found in deployed rag-server');
+    throw new Error(`${pkgName} not found in deployed rag-server`);
   }
+}
+
+function patchCorePackageExports(ragOut) {
+  patchWorkspacePackageExports(ragOut, '@bluelamp/core');
+}
+
+function patchPgActionsPackageExports(ragOut) {
+  patchWorkspacePackageExports(ragOut, '@bluelamp/pg-actions');
 }
 
 /** v1 portable: no local GGUF / OCR packages (remote Ollama + BGE-M3 only). */
@@ -294,8 +306,9 @@ mkdirSync(RUNTIME_OUT, { recursive: true });
 mkdirSync(MODELS_OUT, { recursive: true });
 
 // 1) Build workspace packages needed by rag-server
-log('building @bluelamp/core + @bluelamp/rag-server…');
+log('building @bluelamp/core + @bluelamp/pg-actions + @bluelamp/rag-server…');
 execSync('pnpm --filter @bluelamp/core build', { cwd: ROOT, stdio: 'inherit' });
+execSync('pnpm --filter @bluelamp/pg-actions build', { cwd: ROOT, stdio: 'inherit' });
 execSync('pnpm --filter @bluelamp/rag-server build', { cwd: ROOT, stdio: 'inherit' });
 
 // 2) Deploy production tree (hoisted survives zip better than isolated junctions)
@@ -308,6 +321,7 @@ mustExist(path.join(RAG_OUT, 'dist/index.js'), 'rag-server build output');
 mustExist(path.join(RAG_OUT, 'node_modules'), 'deployed dependencies');
 
 patchCorePackageExports(RAG_OUT);
+patchPgActionsPackageExports(RAG_OUT);
 pruneUnusedPackages(RAG_OUT);
 ensureTopLevelPeers(RAG_OUT);
 
@@ -361,10 +375,19 @@ writeFileSync(
       platform: process.platform,
       arch: process.arch,
       ragServerZip: 'rag-server.zip',
+      seedDb: 'seed/piflow.db',
     },
     null,
     2,
   ),
 );
 
-log('done → apps/desktop/src-tauri/resources/ (rag-server.zip + models + node)');
+// 7) Empty SQLite seed (schema only — never ship .data / test KB)
+log('prepare empty seed piflow.db…');
+execSync(`node "${path.join(ROOT, 'scripts/prepare-empty-piflow-db.mjs')}"`, {
+  cwd: ROOT,
+  stdio: 'inherit',
+});
+mustExist(path.join(RESOURCES, 'seed/piflow.db'), 'empty seed db');
+
+log('done → apps/desktop/src-tauri/resources/ (rag-server.zip + models + node + seed)');

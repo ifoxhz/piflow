@@ -419,7 +419,7 @@ apps/desktop/src/
 | 整库法律文档、全书扫描 PDF | 可能触顶；需分批文件夹导入或后续调高 |
 | 开发测试 | 可在配置里临时改为 `2000` / `100MB` |
 
-**已确认**：采用默认 **500 文件 / 50MB**；若你测试时经常触顶，实现阶段做成 `BLUELAMP_INGEST_MAX_FILES` / `BLUELAMP_INGEST_MAX_FILE_BYTES` 环境变量即可调。
+**已确认**：采用默认 **500 文件 / 50MB**；若你测试时经常触顶，实现阶段做成 `PIFLOW_INGEST_MAX_FILES` / `PIFLOW_INGEST_MAX_FILE_BYTES` 环境变量即可调。
 
 **粗算**：30 个 PDF、平均 20 chunk/文件 → 600 次 embed；BGE-M3 在 CPU 上约数分钟级，可接受。
 

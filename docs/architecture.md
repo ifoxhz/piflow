@@ -532,11 +532,11 @@ import { env, pipeline } from '@huggingface/transformers';
 
 function configureModelMirror() {
   const host = process.env.HF_ENDPOINT
-    ?? process.env.BLUELAMP_HF_MIRROR
+    ?? process.env.PIFLOW_HF_MIRROR
     ?? 'https://hf-mirror.com';
   env.remoteHost = host.endsWith('/') ? host : `${host}/`;
   env.allowLocalModels = true;
-  env.localModelPath = process.env.BLUELAMP_MODELS_DIR
+  env.localModelPath = process.env.PIFLOW_MODELS_DIR
     ?? path.resolve(process.cwd(), 'models');
   // 开发：本地优先；缺失文件时 allowRemoteModels 触发镜像下载
   env.allowRemoteModels = true;
@@ -602,10 +602,10 @@ interface DownloadProgress {
 
 #### 4.7.6 路径约定
 
-| 环境 | `BLUELAMP_MODELS_DIR` / `env.localModelPath` |
+| 环境 | `PIFLOW_MODELS_DIR` / `env.localModelPath` |
 |------|-----------------------------------------------|
 | 开发（仓库内） | `{repoRoot}/models` |
-| 生产（用户目录） | `%APPDATA%\piFlow\`（便携版由壳注入 `BLUELAMP_DATA_DIR`；模型常随包/同目录） |
+| 生产（用户目录） | `%APPDATA%\piFlow\`（便携版由壳注入 `PIFLOW_DATA_DIR`；模型常随包/同目录） |
 
 Transformers.js 加载本地模型时，`pipeline('feature-extraction', 'Xenova/bge-m3')` 会解析为 `{localModelPath}/Xenova/bge-m3/`。
 
@@ -677,7 +677,7 @@ sequenceDiagram
 ## 6. 目录结构（建议）
 
 ```
-bluelamp/
+piflow/
 ├── apps/
 │   ├── desktop/                    # Tauri 2 桌面应用
 │   │   ├── src/                    # React 前端（WebView）
@@ -788,7 +788,7 @@ bluelamp/
 |--------|------|
 | WebView | WebView2（Tauri 内置） |
 | 硬件加速 | 嵌入：ONNX CPU；生成：Ollama / DeepSeek（可选本地 GGUF） |
-| 用户数据路径 | `%APPDATA%\piFlow\`（`BLUELAMP_DATA_DIR`） |
+| 用户数据路径 | `%APPDATA%\piFlow\`（`PIFLOW_DATA_DIR`） |
 | 模型 | 开发：`{repo}/models`；便携包：资源目录 / 用户目录 |
 | Sidecar | zip 解压到 `%APPDATA%\piFlow\sidecar\`，内嵌 `node.exe` 启停 |
 | 内存建议 | ≥ 16 GB RAM |
@@ -807,7 +807,7 @@ bluelamp/
 | 模型目录 | `{repo}/models` |
 | 内存 | 建议 `.wslconfig` 分配 ≥ 16 GB（加载模型） |
 
-WSL 下未设置 `BLUELAMP_DATA_DIR` 时，与开发约定一致：可用仓库 `.data/`（由 `paths.ts` 解析）。
+WSL 下未设置 `PIFLOW_DATA_DIR` 时，与开发约定一致：可用仓库 `.data/`（由 `paths.ts` 解析）。
 
 ### 7.3 平台抽象
 
@@ -816,13 +816,14 @@ Sidecar 通过环境变量接收路径（便携版由 Tauri 注入）：
 ```typescript
 // apps/rag-server/src/platform/paths.ts（示意）
 export function getDataDir(): string {
-  return process.env.BLUELAMP_DATA_DIR ?? path.join(getRepoRoot(), '.data');
+  return process.env.PIFLOW_DATA_DIR ?? path.join(getRepoRoot(), '.data');
 }
+// SQLite：优先 piflow.db；若仅有历史 bluelamp.db 则自动改名迁移
 ```
 
 ```rust
 // apps/desktop/src-tauri/src/lib.rs（示意）
-cmd.env("BLUELAMP_DATA_DIR", &data_dir) // app.path().app_data_dir() → %APPDATA%\piFlow
+cmd.env("PIFLOW_DATA_DIR", &data_dir) // app.path().app_data_dir() → %APPDATA%\piFlow
 ```
 
 前端系统 API（文件对话框等）通过 `@tauri-apps/api` 调用，业务 API 走 HTTP：
@@ -873,7 +874,7 @@ interface PlatformAdapter {
 | 维度 | 策略 |
 |------|------|
 | 数据驻留 | 所有文档、向量、会话均存储在本地用户目录 |
-| 网络访问 | 首次/缺失模型时从 **hf-mirror.com** 下载；可配置 `BLUELAMP_HF_MIRROR` |
+| 网络访问 | 首次/缺失模型时从 **hf-mirror.com** 下载；可配置 `PIFLOW_HF_MIRROR` |
 | 文件访问 | 通过系统文件对话框显式授权，遵循 Windows 权限模型 |
 | 依赖审计 | 定期 `npm audit`，锁定原生模块版本 |
 | 日志 | 默认不记录文档内容；可配置诊断日志级别 |

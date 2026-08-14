@@ -10,6 +10,8 @@ piFlow 是一款检索增强生成（RAG）桌面应用：导入本地文档构�
 
 UI 设计预览：[docs/index.png](docs/index.png)
 
+<video src="docs/piFlow-full-middle-3x.mp4" controls muted loop></video>
+
 ## 特性
 
 - **答案可追溯**：每条答案都附带引用与原文摘录，可点击定位到源文档和具体片段——让幻觉无所遁形
@@ -100,11 +102,11 @@ pnpm dev
 | 变量 | 说明 |
 |------|------|
 | `HF_ENDPOINT` | Hugging Face 镜像，默认 `https://hf-mirror.com` |
-| `BLUELAMP_RAG_PORT` | RAG 服务端口，默认 `3847` |
-| `BLUELAMP_MODELS_DIR` | 模型目录，默认仓库内 `models/` |
-| `BLUELAMP_DATA_DIR` | 数据目录；未设置时开发态用仓库 `.data/`，打包版由壳注入 `%APPDATA%\piFlow\` |
-| `BLUELAMP_USE_LOCAL_LLM` | 设为 `true` 启用本地 GGUF 生成（无需 Ollama） |
-| `BLUELAMP_OLLAMA_URL` / `BLUELAMP_OLLAMA_MODEL` | 远程 Ollama 端点与模型 |
+| `PIFLOW_RAG_PORT` | RAG 服务端口，默认 `3847` |
+| `PIFLOW_MODELS_DIR` | 模型目录，默认仓库内 `models/` |
+| `PIFLOW_DATA_DIR` | 数据目录；未设置时开发态用仓库 `.data/`，打包版由壳注入 `%APPDATA%\piFlow\` |
+| `PIFLOW_USE_LOCAL_LLM` | 设为 `true` 启用本地 GGUF 生成（无需 Ollama） |
+| `PIFLOW_OLLAMA_URL` / `PIFLOW_OLLAMA_MODEL` | 远程 Ollama 端点与模型 |
 
 ## Windows 便携包
 

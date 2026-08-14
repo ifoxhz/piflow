@@ -74,16 +74,16 @@ copy .env.example .env
 
 ```env
 HF_ENDPOINT=https://hf-mirror.com
-BLUELAMP_RAG_PORT=3847
+PIFLOW_RAG_PORT=3847
 VITE_RAG_SERVER_URL=http://127.0.0.1:3847
 
 # 远端 Ollama（也可稍后在 Settings UI 里改，确定后立即生效）
-BLUELAMP_OLLAMA_URL=http://<OLLAMA_HOST>:11434
-BLUELAMP_OLLAMA_MODEL=qwen3.5:4b
+PIFLOW_OLLAMA_URL=http://<OLLAMA_HOST>:11434
+PIFLOW_OLLAMA_MODEL=qwen3.5:4b
 
 # 使用远端时不要优先本地 GGUF
-# BLUELAMP_USE_LOCAL_LLM=true
-# BLUELAMP_PREFER_LOCAL_LLM=true
+# PIFLOW_USE_LOCAL_LLM=true
+# PIFLOW_PREFER_LOCAL_LLM=true
 ```
 
 - [ ] 下载嵌入等本地模型（生成可走远端，但 BGE-M3 仍要本机）：

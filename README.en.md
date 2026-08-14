@@ -10,6 +10,8 @@ The main chat is driven by the **piFlow Agent** (Pi harness): the knowledge base
 
 UI design preview: [docs/index.png](docs/index.png)
 
+<video src="docs/piFlow-full-middle-3x.mp4" controls muted loop></video>
+
 ## Features
 
 - **Traceable answers**: every answer ships with citations and verbatim excerpts, clickable down to the source document and chunk — keeping hallucination in check
@@ -100,11 +102,11 @@ Key environment variables (full list in [.env.example](.env.example)):
 | Variable | Description |
 |----------|-------------|
 | `HF_ENDPOINT` | Hugging Face mirror, defaults to `https://hf-mirror.com` |
-| `BLUELAMP_RAG_PORT` | RAG server port, defaults to `3847` |
-| `BLUELAMP_MODELS_DIR` | Model directory, defaults to `models/` in the repo |
-| `BLUELAMP_DATA_DIR` | Data directory; unset → repo `.data/` in dev; packaged app injects `%APPDATA%\piFlow\` |
-| `BLUELAMP_USE_LOCAL_LLM` | Set `true` for local GGUF generation (no Ollama needed) |
-| `BLUELAMP_OLLAMA_URL` / `BLUELAMP_OLLAMA_MODEL` | Remote Ollama endpoint and model |
+| `PIFLOW_RAG_PORT` | RAG server port, defaults to `3847` |
+| `PIFLOW_MODELS_DIR` | Model directory, defaults to `models/` in the repo |
+| `PIFLOW_DATA_DIR` | Data directory; unset → repo `.data/` in dev; packaged app injects `%APPDATA%\piFlow\` |
+| `PIFLOW_USE_LOCAL_LLM` | Set `true` for local GGUF generation (no Ollama needed) |
+| `PIFLOW_OLLAMA_URL` / `PIFLOW_OLLAMA_MODEL` | Remote Ollama endpoint and model |
 
 ## Windows portable package
 

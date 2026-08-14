@@ -9,7 +9,7 @@ import {
 } from './query-templates.js';
 
 /** Below this max exemplar cosine → treat as low confidence / use fallback hint recipe. */
-const SCORE_THRESHOLD = Number(process.env.BLUELAMP_TEMPLATE_SCORE_MIN ?? 0.42);
+const SCORE_THRESHOLD = Number(process.env.PIFLOW_TEMPLATE_SCORE_MIN ?? 0.42);
 
 export interface TemplateRouteResult {
   template: QueryTemplate;

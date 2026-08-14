@@ -4,11 +4,11 @@ import { logLlmQueryInput, summarizeChunksForLog } from '../chat/llm-query-log.j
 import type { ScoredChunk } from '../retrieval/retriever.js';
 import { buildRagInstructPrompt, type RagPromptOptions } from './rag-instruct-prompt.js';
 
-/** Relative to BLUELAMP_MODELS_DIR; see models/manifest.json */
+/** Relative to PIFLOW_MODELS_DIR; see models/manifest.json */
 export const DEFAULT_QWEN_GGUF = 'Qwen2.5-3B-Instruct/qwen2.5-3b-instruct-q4_k_m.gguf';
 
-const GENERATION_TIMEOUT_MS = Number(process.env.BLUELAMP_CHAT_TIMEOUT_MS ?? 180_000);
-const CONTEXT_SIZE = Number(process.env.BLUELAMP_LOCAL_LLM_CONTEXT ?? 8192);
+const GENERATION_TIMEOUT_MS = Number(process.env.PIFLOW_CHAT_TIMEOUT_MS ?? 180_000);
+const CONTEXT_SIZE = Number(process.env.PIFLOW_LOCAL_LLM_CONTEXT ?? 8192);
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let session: any = null;
@@ -16,15 +16,15 @@ let session: any = null;
 let loading: Promise<any> | null = null;
 
 export function isLocalLlmConfigured(): boolean {
-  return process.env.BLUELAMP_USE_LOCAL_LLM === 'true';
+  return process.env.PIFLOW_USE_LOCAL_LLM === 'true';
 }
 
 export function preferLocalLlm(): boolean {
-  return process.env.BLUELAMP_PREFER_LOCAL_LLM === 'true';
+  return process.env.PIFLOW_PREFER_LOCAL_LLM === 'true';
 }
 
 function resolveModelPath(): string {
-  const custom = process.env.BLUELAMP_LOCAL_GGUF?.trim();
+  const custom = process.env.PIFLOW_LOCAL_GGUF?.trim();
   if (custom) {
     return path.isAbsolute(custom) ? custom : path.join(getModelsDir(), custom);
   }

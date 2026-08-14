@@ -38,6 +38,85 @@ input {
   outline: none;
 }
 
+/* ── First-launch bootstrap ── */
+.bootstrap-screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  width: 100vw;
+  background: linear-gradient(165deg, #f5f5f7 0%, #ffffff 45%, #eef1f6 100%);
+}
+
+.bootstrap-card {
+  width: min(420px, calc(100% - 48px));
+  padding: 36px 32px;
+  text-align: center;
+}
+
+.bootstrap-brand {
+  font-size: 22px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  color: #1d1d1f;
+  margin-bottom: 28px;
+}
+
+.bootstrap-spinner {
+  width: 36px;
+  height: 36px;
+  margin: 0 auto 22px;
+  border: 3px solid #d2d2d7;
+  border-top-color: #1d1d1f;
+  border-radius: 50%;
+  animation: bootstrap-spin 0.8s linear infinite;
+}
+
+@keyframes bootstrap-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.bootstrap-title {
+  font-size: 17px;
+  font-weight: 600;
+  color: #1d1d1f;
+  margin-bottom: 6px;
+}
+
+.bootstrap-title-en {
+  font-size: 14px;
+  color: #6e6e73;
+  margin-bottom: 18px;
+}
+
+.bootstrap-detail,
+.bootstrap-hint {
+  font-size: 13px;
+  color: #6e6e73;
+  line-height: 1.55;
+}
+
+.bootstrap-detail-en,
+.bootstrap-hint-en {
+  font-size: 12px;
+  color: #8e8e93;
+  line-height: 1.55;
+  margin-top: 4px;
+}
+
+.bootstrap-error {
+  margin: 12px 0 16px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fff2f2;
+  color: #b42318;
+  font-size: 13px;
+  text-align: left;
+  word-break: break-word;
+}
+
 /* ── Shell ── */
 .app-shell {
   display: flex;

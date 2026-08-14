@@ -81,7 +81,7 @@
 
 - exemplar **禁止**写死当前知识库主题（如某书、某技术名）；主题只从当次用户输入抽取。
 - `answerHint` / `intent` / `finalTopK` / `perQueryK` **始终**来自模板；规划 LLM 只填 `denseQueries` + `keywords`。
-- 分低于 `BLUELAMP_TEMPLATE_SCORE_MIN`（默认 0.42）时仍选最高分模板 id，但 hint/recipe 偏保守；plan 回传 `lowConfidence: true`。
+- 分低于 `PIFLOW_TEMPLATE_SCORE_MIN`（默认 0.42）时仍选最高分模板 id，但 hint/recipe 偏保守；plan 回传 `lowConfidence: true`。
 - 「有哪些功能/能力/模块」优先 `inventory_sources`，勿与 `enumerate_entities`（具名人物/对象）混淆。
 - 实现：`query-templates.ts`、`template-router.ts`；plan 回传 `templateId` / `templateScore` / `lowConfidence`。
 
@@ -359,7 +359,7 @@ message: 他后来去哪了？
 
 ### 6.1 后端
 
-与生成相同：优先已配置的 Ollama（`BLUELAMP_OLLAMA_URL`）。
+与生成相同：优先已配置的 Ollama（`PIFLOW_OLLAMA_URL`）。
 
 ### 6.2 输出要求
 
@@ -367,7 +367,7 @@ message: 他后来去哪了？
 - 只填 `denseQueries` + `keywords`；`intent` / `answerHint` 由模板强制覆盖
 - `denseQueries`：1～5 条（常用 2～4；列举/对比可到 5）；去寒暄；专名保留；可中英搭配；勿同义凑数
 - 遵守模板 `queryRecipe`（条数倾向、侧面、忌讳）
-- `temperature=0`，短 `num_predict`，**独立短超时**（`BLUELAMP_PLAN_TIMEOUT_MS`，默认 30s）
+- `temperature=0`，短 `num_predict`，**独立短超时**（`PIFLOW_PLAN_TIMEOUT_MS`，默认 30s）
 
 ### 6.3 Fallback
 

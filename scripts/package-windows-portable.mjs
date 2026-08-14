@@ -50,6 +50,9 @@ cpSync(path.join(RES, 'runtime'), path.join(OUT_DIR, 'runtime'), { recursive: tr
 cpSync(path.join(RES, 'models'), path.join(OUT_DIR, 'models'), { recursive: true });
 copyFileSync(path.join(RES, 'rag-server.zip'), path.join(OUT_DIR, 'rag-server.zip'));
 copyFileSync(path.join(RES, 'BUNDLE_INFO.json'), path.join(OUT_DIR, 'BUNDLE_INFO.json'));
+must(path.join(RES, 'seed/piflow.db'), 'run: pnpm bundle:windows-sidecar');
+mkdirSync(path.join(OUT_DIR, 'seed'), { recursive: true });
+copyFileSync(path.join(RES, 'seed/piflow.db'), path.join(OUT_DIR, 'seed/piflow.db'));
 
 writeFileSync(
   path.join(OUT_DIR, 'README.txt'),
@@ -59,7 +62,9 @@ writeFileSync(
     '1. Unzip this folder anywhere (prefer a short path, e.g. D:\\apps\\piFlow).',
     '2. Run "piFlow.exe".',
     '3. First launch extracts the backend under %APPDATA%\\piFlow\\sidecar\\.',
-    '4. Open Settings to configure LLM / Postgres / skills.',
+    '4. Knowledge base + chat history live in %APPDATA%\\piFlow\\ (NOT inside this zip).',
+    '   Re-unzipping does not clear old data. To start fresh, delete that folder.',
+    '5. Open Settings to configure LLM / Postgres / skills.',
     '',
     `Version: ${version}`,
     '',

@@ -83,7 +83,7 @@ export interface RetrievalPlan {
   templateId?: string;
   /** Cosine score of best exemplar match for templateId. */
   templateScore?: number;
-  /** True when exemplar match was below BLUELAMP_TEMPLATE_SCORE_MIN (conservative hint/recipe). */
+  /** True when exemplar match was below PIFLOW_TEMPLATE_SCORE_MIN (conservative hint/recipe). */
   lowConfidence?: boolean;
 }
 

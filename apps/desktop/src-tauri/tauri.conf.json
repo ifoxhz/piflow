@@ -37,7 +37,8 @@
       "resources/runtime/": "runtime/",
       "resources/models/": "models/",
       "resources/rag-server.zip": "rag-server.zip",
-      "resources/BUNDLE_INFO.json": "BUNDLE_INFO.json"
+      "resources/BUNDLE_INFO.json": "BUNDLE_INFO.json",
+      "resources/seed/piflow.db": "seed/piflow.db"
     }
   }
 }

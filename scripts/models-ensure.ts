@@ -144,7 +144,7 @@ async function ensureModel(entry: ModelManifestEntry, mirrorHost: string): Promi
 
 async function main() {
   const mirror =
-    process.env.HF_ENDPOINT ?? process.env.BLUELAMP_HF_MIRROR ?? 'https://hf-mirror.com';
+    process.env.HF_ENDPOINT ?? process.env.PIFLOW_HF_MIRROR ?? 'https://hf-mirror.com';
   const host = mirror.endsWith('/') ? mirror.slice(0, -1) : mirror;
   console.log(`[models-ensure] mirror: ${host}`);
 

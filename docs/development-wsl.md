@@ -125,9 +125,9 @@ cp .env.example .env
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
 | `HF_ENDPOINT` | `https://hf-mirror.com` | 模型下载镜像 |
-| `BLUELAMP_RAG_PORT` | `3847` | RAG 服务端口 |
+| `PIFLOW_RAG_PORT` | `3847` | RAG 服务端口 |
 | `VITE_RAG_SERVER_URL` | `http://127.0.0.1:3847` | 前端连后端 |
-| `BLUELAMP_MODELS_DIR` | `{repo}/models` | 模型根目录 |
+| `PIFLOW_MODELS_DIR` | `{repo}/models` | 模型根目录 |
 
 ---
 

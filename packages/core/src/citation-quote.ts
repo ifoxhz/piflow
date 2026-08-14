@@ -27,7 +27,7 @@ function isTableSeparatorLine(line: string): boolean {
  * Truncate chunk text for citation previews without cutting mid-table-row
  * or mid-sentence when a natural boundary exists within the tail window.
  */
-export function truncateCitationQuote(content: string, maxChars = 280): string {
+export function truncateCitationQuote(content: string, maxChars = 140): string {
   const trimmed = content.trim();
   if (!trimmed) return '';
   if (trimmed.length <= maxChars) return trimmed;

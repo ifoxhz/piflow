@@ -19,7 +19,7 @@ export interface ModelManifest {
   models: ModelManifestEntry[];
 }
 
-/** Resolve model files relative to BLUELAMP_MODELS_DIR (or repo models/). */
+/** Resolve model files relative to PIFLOW_MODELS_DIR (or repo models/). */
 function resolveModelBase(localDir: string): string {
   const modelsDir = getModelsDir();
   const stripped = localDir.replace(/^models[\\/]/, '');
