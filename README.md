@@ -10,7 +10,7 @@ piFlow 是一款检索增强生成（RAG）桌面应用：导入本地文档构�
 
 UI 设计预览：[docs/index.png](docs/index.png)
 
-<video src="docs/piFlow-full-middle-3x.mp4" controls muted loop></video>
+[![观看演示视频](docs/index.png)](docs/piFlow-full-middle-3x.mp4)
 
 ## 特性
 
