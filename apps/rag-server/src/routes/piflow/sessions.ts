@@ -59,6 +59,7 @@ piflowSessionRoutes.get('/:id', (c) => {
     content: m.content,
     createdAt: m.createdAt,
     ...(m.citations?.length ? { citations: m.citations } : {}),
+    ...(m.artifacts?.length ? { artifacts: m.artifacts } : {}),
   }));
   return c.json({
     id: session.id,

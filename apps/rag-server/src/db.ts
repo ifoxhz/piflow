@@ -89,6 +89,7 @@ function initSchema(database: Database.Database): void {
   ensureColumn(database, 'documents', 'indexed_page_count', 'indexed_page_count INTEGER NOT NULL DEFAULT 0');
   ensureColumn(database, 'documents', 'ingest_complete', 'ingest_complete INTEGER NOT NULL DEFAULT 0');
   ensureColumn(database, 'piflow_messages', 'citations_json', 'citations_json TEXT');
+  ensureColumn(database, 'piflow_messages', 'artifacts_json', 'artifacts_json TEXT');
 
   // Pre-fingerprint native docs with chunks are treated complete; PDFs rebuild page hashes once.
   database.exec(`

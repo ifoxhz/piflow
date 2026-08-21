@@ -72,7 +72,7 @@
 +------------------------------------------------------------------+
 ```
 
-**piFlow 专项设计**（Agent-first、knowledge-rag B1、citations、Skill 模型、**信息源软约束 / 不用 Host Grounding Gate**）见 **[piflow.md](piflow.md)** §3.4。
+**piFlow 专项设计**（Agent-first、knowledge-rag B1、citations、Skill 模型、**信息源软约束 / 不用 Host Grounding Gate**）见 **[piflow.md](piflow.md)** §3.4。结果画布见 **[canvas.md](canvas.md)**。
 
 ### 2.1 架构原则
 
@@ -735,6 +735,7 @@ piflow/
 ├── docs/
 │   ├── architecture.md
 │   ├── piflow.md                   # piFlow Agent 设计
+│   ├── canvas.md                   # Canvas 结果画布
 │   ├── user-manual.zh.md
 │   └── adr/
 │       ├── 001-tauri-sidecar.md

@@ -3,7 +3,7 @@
 > 基于 [Pi](https://pi.dev/) SDK 的工作流 Agent，作为应用 **主对话入口**；知识库 RAG 与 Postgres 等以 **Skill / Tools** 形式挂载。  
 > 技术栈：TypeScript · pnpm monorepo · Hono · `@earendil-works/pi-coding-agent` · React（Tauri UI）
 
-**相关文档**：[架构总览](architecture.md)（[English](architecture.en.md)）· [用户手册](user-manual.zh.md)
+**相关文档**：[架构总览](architecture.md)（[English](architecture.en.md)）· [用户手册](user-manual.zh.md) · [Canvas 画布](canvas.md)
 
 **文档版本：v0.3** · Agent-first + knowledge-rag B1 · 信息源策略（软约束）· 2026-08
 
@@ -186,11 +186,12 @@ Settings → **模型配置**：Ollama / DeepSeek 互斥。当前提供方用于
 |------|------|
 | Pi 装配 | `apps/rag-server/src/services/piflow/agent.ts` |
 | KB tools | `apps/rag-server/src/services/piflow/kb-tools.ts` |
+| Canvas artifacts | `apps/rag-server/src/services/piflow/artifacts.ts` · `ui-tools.ts` |
 | Skill 设置 | `apps/rag-server/src/services/piflow/skill-settings.ts` |
 | 会话 / 引用落库 | `apps/rag-server/src/services/piflow/chat-store.ts` |
 | SSE | `apps/rag-server/src/routes/piflow/chat.ts` |
 | 检索复用 | `apps/rag-server/src/services/retrieval/retriever.ts` |
-| 桌面主视图 | `apps/desktop/src/components/PiFlowView.tsx` · `App.tsx` |
+| 桌面主视图 | `apps/desktop/src/components/PiFlowView.tsx` · `CanvasPanel.tsx` · `SummaryCard.tsx` |
 
 ---
 
@@ -211,6 +212,7 @@ Settings → **模型配置**：Ollama / DeepSeek 互斥。当前提供方用于
 | `status` | 开始 |
 | `text_delta` | 文本增量 |
 | `tool_start` / `tool_end` | 工具起止 |
+| `artifact` | Canvas 概况 + 表格/KPI payload（可多次 revision） |
 | `citations` | `{ citations: Citation[] }` 当轮引用（可多次合并） |
 | `agent_end` / `done` / `error` | 结束与错误 |
 
@@ -221,7 +223,7 @@ Settings → **模型配置**：Ollama / DeepSeek 互斥。当前提供方用于
 | 位置 | 用途 |
 |------|------|
 | `piflow.db` → `chunks` / `documents` | 知识库 |
-| `piflow_sessions` / `piflow_messages`（+ `citations_json`） | Agent 会话 |
+| `piflow_sessions` / `piflow_messages`（+ `citations_json` · `artifacts_json`） | Agent 会话与 Canvas |
 | `piflow-skills.json` | 含 `knowledge.enabled` |
 | `llm-config.json` / `ollama-config.json` / `postgres-config.json` | 配置 |
 
@@ -232,6 +234,7 @@ Settings → **模型配置**：Ollama / DeepSeek 互斥。当前提供方用于
 - 默认视图：**piFlow**  
 - **New Chat** → 新建 piFlow 会话并进入 piFlow  
 - 侧栏会话列表 = piFlow 会话（不再用 RAG localStorage 作为主列表）  
+- 有查询结果时：聊天流 **Summary Card**；右栏 **Canvas**（表 / KPI）；详见 [canvas.md](canvas.md)  
 - Knowledge Base：导入与文档表；导入完成后刷新 skill 状态  
 - Settings：模型 · Postgres · Local FS · knowledge skill 开关  
 

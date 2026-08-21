@@ -1,4 +1,4 @@
-import type { Citation } from '@bluelamp/core';
+import type { CanvasArtifact, Citation } from '@bluelamp/core';
 import { getRagServerUrl } from './rag';
 
 export type PiFlowSessionSummary = {
@@ -22,6 +22,7 @@ export type PiFlowMessage = {
   createdAt: number;
   tools?: string[];
   citations?: Citation[];
+  artifacts?: CanvasArtifact[];
 };
 
 export type PostgresConfig = {
@@ -188,6 +189,7 @@ export type PiFlowSseHandlers = {
   onTextDelta?: (delta: string) => void;
   onToolStart?: (data: PiFlowToolBudgetEvent) => void;
   onCitations?: (citations: Citation[]) => void;
+  onArtifact?: (artifact: CanvasArtifact) => void;
   onError?: (message: string, meta?: { aborted?: boolean }) => void;
   onDone?: (data: {
     ok?: boolean;
@@ -307,6 +309,12 @@ export async function sendPiFlowMessage(
             const list = parsed.citations;
             if (Array.isArray(list)) {
               handlers.onCitations?.(list as Citation[]);
+            }
+            break;
+          }
+          case 'artifact': {
+            if (typeof parsed.id === 'string' && typeof parsed.kind === 'string') {
+              handlers.onArtifact?.(parsed as unknown as CanvasArtifact);
             }
             break;
           }

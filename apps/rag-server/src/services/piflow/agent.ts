@@ -11,9 +11,11 @@ import {
 } from '@earendil-works/pi-coding-agent';
 import type { Citation } from '@bluelamp/core';
 import { createPgTools, PG_TOOL_NAMES } from '@bluelamp/pg-actions';
+import { createArtifactTurn, type ArtifactTurn } from './artifacts.js';
 import { piflowConfig } from './config.js';
 import { getPiLlmSettings } from './llm-bridge.js';
 import { createKbTools, KB_TOOL_NAMES } from './kb-tools.js';
+import { createUiTools, UI_TOOL_NAMES } from './ui-tools.js';
 import { createConfiguredSchemaCache } from './schema-service.js';
 import {
   activeSkillDirNames,
@@ -28,7 +30,8 @@ import {
 const SYSTEM_PROMPT_BASE = `You are piFlow, the main workflow agent. Only use tools from currently enabled skills.
 
 Rules:
-- Keep answers concise. Format replies in Markdown (headings, lists, tables, fenced code/SQL when useful).
+- Chat is the summary: a short headline plus a few outline bullets. Do not dump large Markdown tables or full result grids in the reply — the host opens Canvas for row-level data.
+- After pg_query / kb_list_documents / kb_search, the host already shows a table on Canvas. Optionally call ui_present to set title, headline, and 3–7 outline bullets.
 - After tool results arrive, always finish with a clear final answer — never stop at “我来查找…”.
 - Always follow the no-delete-data skill: never delete or destroy data.
 - Do not invent paths, table names, column names, or document quotes.
@@ -117,6 +120,7 @@ export type SessionBundle = {
   dispose: () => void;
   /** Citations accumulated from kb_* tools this turn (renumbered). */
   getCitations: () => Citation[];
+  artifacts: ArtifactTurn;
 };
 
 export async function createWorkflowSession(): Promise<SessionBundle> {
@@ -141,6 +145,8 @@ export async function createWorkflowSession(): Promise<SessionBundle> {
     );
   }
 
+  const artifacts = createArtifactTurn();
+  const uiTools = createUiTools({ onPresent: (input) => artifacts.present(input) });
   const turnCitations: Citation[] = [];
   const mergeCitations = (next: Citation[]) => {
     const byId = new Map(turnCitations.map((c) => [c.chunkId, c]));
@@ -228,6 +234,7 @@ Disabled. Use pg_list_schemas / pg_list_tables / pg_describe_table against the l
     localFsOn
       ? `- Local FS tools enabled: ${localFsToolNames().join(', ')}`
       : '- Local FS skill disabled',
+    '- Canvas: host renders tables from tool results; ui_present may set headline/outline. Do not dump large grids in chat.',
   ];
 
   const systemPrompt = `${SYSTEM_PROMPT_BASE}
@@ -262,6 +269,7 @@ ${skillSections.join('\n\n')}${schemaSection}${localFsSection}`;
     ...(knowledgeOn ? [...KB_TOOL_NAMES] : []),
     ...(postgresOn ? PG_TOOL_NAMES : []),
     ...localFsToolNames(),
+    ...UI_TOOL_NAMES,
   ];
 
   const resourceLoader = new DefaultResourceLoader({
@@ -282,7 +290,7 @@ ${skillSections.join('\n\n')}${schemaSection}${localFsSection}`;
     thinkingLevel: 'off',
     modelRuntime,
     tools: toolNames,
-    customTools: [...kbTools, ...pgTools],
+    customTools: [...kbTools, ...pgTools, ...uiTools],
     resourceLoader,
     sessionManager: SessionManager.inMemory(),
     settingsManager,
@@ -291,6 +299,7 @@ ${skillSections.join('\n\n')}${schemaSection}${localFsSection}`;
   return {
     session,
     getCitations: () => [...turnCitations],
+    artifacts,
     dispose: () => {
       session.dispose();
       void pgRuntime?.pool?.end();

@@ -1,0 +1,10 @@
+{
+  "providers": {
+    "deepseek": {
+      "apiKey": "YOUR_DEEPSEEK_API_KEY",
+      "baseURL": "https://api.deepseek.com/v1",
+      "defaultModel": "deepseek-v4-pro-0813"
+    }
+  },
+  "defaultProvider": "deepseek"
+}

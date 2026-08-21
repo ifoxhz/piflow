@@ -117,6 +117,15 @@ piflowChatRoutes.post('/', async (c) => {
                 await send('citations', { citations });
               }
             }
+            if (!event.isError) {
+              let artifact = bundle.artifacts.promoteTool(event.toolName, event.result);
+              if (!artifact && event.toolName === 'ui_present') {
+                artifact = bundle.artifacts.latest();
+              }
+              if (artifact) {
+                await send('artifact', artifact);
+              }
+            }
             break;
           }
           case 'agent_end':
@@ -143,6 +152,7 @@ piflowChatRoutes.post('/', async (c) => {
       await chain;
 
       const citations = bundle.getCitations();
+      const canvasArtifacts = bundle.artifacts.list();
       if (citations.length > 0) {
         await send('citations', { citations });
       }
@@ -154,6 +164,7 @@ piflowChatRoutes.post('/', async (c) => {
           assistantText.trim(),
           Date.now(),
           citations.length > 0 ? citations : undefined,
+          canvasArtifacts.length > 0 ? canvasArtifacts : undefined,
         );
       }
 
@@ -178,6 +189,7 @@ piflowChatRoutes.post('/', async (c) => {
     } catch (err) {
       await chain;
       const citations = bundle.getCitations();
+      const canvasArtifacts = bundle.artifacts.list();
       if (assistantText.trim()) {
         try {
           appendMessage(
@@ -186,6 +198,7 @@ piflowChatRoutes.post('/', async (c) => {
             assistantText.trim(),
             Date.now(),
             citations.length > 0 ? citations : undefined,
+            canvasArtifacts.length > 0 ? canvasArtifacts : undefined,
           );
         } catch {
           /* ignore persist failure */

@@ -246,6 +246,8 @@ ollama pull <你的模型名>
 
 配置入口在 **Settings**（模型、Knowledge / Postgres / Local FS 等）。
 
+查询 Postgres 或列出知识库文档后，对话里会出现 **概况卡**（一句话结论 + 若干要点），右侧 **Canvas** 展示表格。聊天区用于总结；点「打开画布」可展开或收起。无结构化结果时不会出现画布。
+
 ### 8.2 Skill：Postgres 只读
 
 用于用自然语言查询 PostgreSQL（**只读**，禁止 DELETE / DROP 等）。
