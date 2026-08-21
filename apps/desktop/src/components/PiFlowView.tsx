@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { formatCitationLocation } from '@bluelamp/core';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { formatCitationLocation, type CanvasArtifact } from '@bluelamp/core';
 import {
   fetchPiFlowSession,
   fetchPiFlowSkills,
@@ -9,9 +9,24 @@ import {
   type PiFlowSkillInfo,
 } from '../api/piflow';
 import { PIFLOW_SKILLS_CHANGED_EVENT } from '../lib/piflowEvents';
+import { CanvasPanel, type CanvasMode } from './CanvasPanel';
 import { MarkdownContent } from './MarkdownContent';
+import { SummaryCard } from './SummaryCard';
 
 type UiMessage = PiFlowMessage & { tools?: string[] };
+
+function upsertArtifact(
+  list: CanvasArtifact[] | undefined,
+  next: CanvasArtifact,
+): CanvasArtifact[] {
+  const prev = list ?? [];
+  const idx = prev.findIndex((a) => a.id === next.id);
+  if (idx < 0) return [...prev, next];
+  if ((prev[idx]?.revision ?? 0) > next.revision) return prev;
+  const copy = [...prev];
+  copy[idx] = next;
+  return copy;
+}
 
 export type PiFlowViewProps = {
   sessionId: string | null;
@@ -33,6 +48,9 @@ export function PiFlowView({
   const [toolBudget, setToolBudget] = useState(PIFLOW_TOOL_BUDGET_DEFAULT);
   const [overBudget, setOverBudget] = useState(false);
   const [lastTurnStats, setLastTurnStats] = useState<string | null>(null);
+  const [canvasMode, setCanvasMode] = useState<CanvasMode>('hidden');
+  const [canvasSourceId, setCanvasSourceId] = useState<string | null>(null);
+  const [activeArtifactId, setActiveArtifactId] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const loadGenRef = useRef(0);
@@ -68,6 +86,9 @@ export function PiFlowView({
 
     if (!sessionId) {
       setMessages([]);
+      setCanvasMode('hidden');
+      setCanvasSourceId(null);
+      setActiveArtifactId(null);
       return;
     }
 
@@ -76,6 +97,18 @@ export function PiFlowView({
         const detail = await fetchPiFlowSession(sessionId);
         if (loadGenRef.current !== gen) return;
         setMessages(detail.messages);
+        const withArt = [...detail.messages]
+          .reverse()
+          .find((m) => m.role === 'assistant' && (m.artifacts?.length ?? 0) > 0);
+        if (withArt?.artifacts?.length) {
+          setCanvasSourceId(withArt.id);
+          setActiveArtifactId(withArt.artifacts[withArt.artifacts.length - 1]!.id);
+          setCanvasMode((mode) => (mode === 'expanded' ? 'expanded' : 'docked'));
+        } else {
+          setCanvasSourceId(null);
+          setActiveArtifactId(null);
+          setCanvasMode('hidden');
+        }
       } catch (err) {
         if (loadGenRef.current !== gen) return;
         setError(err instanceof Error ? err.message : String(err));
@@ -87,6 +120,24 @@ export function PiFlowView({
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, sending, toolCount]);
+
+  const canvasArtifacts = useMemo(() => {
+    if (canvasSourceId) {
+      const source = messages.find((m) => m.id === canvasSourceId);
+      if (source?.artifacts?.length) return source.artifacts;
+    }
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      const m = messages[i];
+      if (m?.role === 'assistant' && m.artifacts?.length) return m.artifacts;
+    }
+    return [];
+  }, [messages, canvasSourceId]);
+
+  const openCanvas = (messageId: string, artifactId?: string) => {
+    setCanvasSourceId(messageId);
+    if (artifactId) setActiveArtifactId(artifactId);
+    setCanvasMode((mode) => (mode === 'expanded' ? 'expanded' : 'docked'));
+  };
 
   const handleStop = () => {
     abortRef.current?.abort();
@@ -155,6 +206,18 @@ export function PiFlowView({
           onCitations: (citations) => {
             setMessages((prev) =>
               prev.map((m) => (m.id === assistantId ? { ...m, citations } : m)),
+            );
+          },
+          onArtifact: (artifact) => {
+            setCanvasSourceId(assistantId);
+            setActiveArtifactId(artifact.id);
+            setCanvasMode((mode) => (mode === 'hidden' ? 'docked' : mode));
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === assistantId
+                  ? { ...m, artifacts: upsertArtifact(m.artifacts, artifact) }
+                  : m,
+              ),
             );
           },
           onError: (message, meta) => {
@@ -266,7 +329,9 @@ export function PiFlowView({
         ];
 
   return (
-    <div className="piflow-view">
+    <div
+      className={`piflow-view is-canvas-${canvasMode}${canvasArtifacts.length ? ' has-canvas' : ''}`}
+    >
       <section className="piflow-chat">
         <header className="piflow-chat-header">
           <div>
@@ -315,6 +380,15 @@ export function PiFlowView({
                 <MarkdownContent content={m.content || (sending ? '…' : '')} />
               ) : (
                 <div className="piflow-user-text">{m.content}</div>
+              )}
+              {m.role === 'assistant' && m.artifacts && m.artifacts.length > 0 && (
+                <SummaryCard
+                  artifact={m.artifacts[m.artifacts.length - 1]!}
+                  extraCount={m.artifacts.length - 1}
+                  onOpen={() =>
+                    openCanvas(m.id, m.artifacts?.[m.artifacts.length - 1]?.id)
+                  }
+                />
               )}
               {m.role === 'assistant' && m.citations && m.citations.length > 0 && (
                 <div className="message-citations">
@@ -394,6 +468,13 @@ export function PiFlowView({
           </button>
         </div>
       </section>
+      <CanvasPanel
+        mode={canvasMode}
+        artifacts={canvasArtifacts}
+        activeId={activeArtifactId}
+        onSelect={setActiveArtifactId}
+        onModeChange={setCanvasMode}
+      />
     </div>
   );
 }

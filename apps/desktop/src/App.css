@@ -1262,6 +1262,23 @@ input {
   overflow: hidden;
 }
 
+.piflow-view.is-canvas-expanded .piflow-chat {
+  flex: 0 0 28%;
+  max-width: 380px;
+  min-width: 220px;
+}
+
+.piflow-view.is-canvas-docked .piflow-canvas {
+  flex: 0 0 44%;
+  max-width: 52%;
+  min-width: 320px;
+}
+
+.piflow-view.is-canvas-expanded .piflow-canvas {
+  flex: 1;
+  min-width: 0;
+}
+
 .piflow-chat {
   flex: 1;
   display: flex;
@@ -1434,4 +1451,217 @@ input {
   outline: none;
   border-color: #007aff;
   box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.15);
+}
+
+.piflow-summary-card {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid #e5e5ea;
+  border-radius: 12px;
+  background: #f5f5f7;
+}
+
+.piflow-summary-headline {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1d1d1f;
+  line-height: 1.4;
+}
+
+.piflow-summary-outline {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: #515154;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.piflow-summary-cta {
+  margin-top: 10px;
+  border: 0;
+  background: transparent;
+  color: #007aff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+
+.piflow-summary-cta:hover {
+  text-decoration: underline;
+}
+
+.piflow-canvas-rail {
+  flex: 0 0 36px;
+  width: 36px;
+  border: 0;
+  border-left: 1px solid #e5e5ea;
+  background: #f5f5f7;
+  color: #515154;
+  font: inherit;
+  font-size: 12px;
+  writing-mode: vertical-rl;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+}
+
+.piflow-canvas-rail:hover {
+  background: #eeeef2;
+}
+
+.piflow-canvas {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-left: 1px solid #e5e5ea;
+  background: #fff;
+}
+
+.piflow-canvas-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid #e5e5ea;
+}
+
+.piflow-canvas-header h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.piflow-canvas-header p {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: #86868b;
+  line-height: 1.4;
+}
+
+.piflow-canvas-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.piflow-canvas-actions button {
+  border: 1px solid #d2d2d7;
+  background: #fff;
+  border-radius: 8px;
+  padding: 4px 10px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  color: #1d1d1f;
+}
+
+.piflow-canvas-actions button:hover {
+  background: #f5f5f7;
+}
+
+.piflow-canvas-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 8px 12px 0;
+  overflow-x: auto;
+}
+
+.piflow-canvas-tabs button {
+  border: 0;
+  background: transparent;
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 12px;
+  color: #86868b;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+}
+
+.piflow-canvas-tabs button.is-active {
+  color: #1d1d1f;
+  font-weight: 600;
+  border-bottom-color: #007aff;
+}
+
+.piflow-canvas-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px 16px 20px;
+}
+
+.piflow-canvas-empty {
+  margin: 24px 0;
+  color: #86868b;
+  font-size: 13px;
+}
+
+.piflow-canvas-table-wrap {
+  overflow: auto;
+}
+
+.piflow-canvas-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.piflow-canvas-table th,
+.piflow-canvas-table td {
+  border-bottom: 1px solid #eee;
+  padding: 8px 10px;
+  text-align: left;
+  vertical-align: top;
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.piflow-canvas-table th {
+  position: sticky;
+  top: 0;
+  background: #fafafa;
+  font-weight: 600;
+  color: #515154;
+}
+
+.piflow-canvas-trunc {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: #86868b;
+}
+
+.piflow-canvas-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 10px;
+}
+
+.piflow-canvas-kpi {
+  border: 1px solid #e5e5ea;
+  border-radius: 10px;
+  padding: 12px;
+  background: #fafafa;
+}
+
+.piflow-canvas-kpi-label {
+  font-size: 12px;
+  color: #86868b;
+}
+
+.piflow-canvas-kpi-value {
+  margin-top: 4px;
+  font-size: 18px;
+  font-weight: 600;
+  color: #1d1d1f;
+}
+
+.piflow-canvas-kpi-hint {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #515154;
 }

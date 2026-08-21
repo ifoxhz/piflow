@@ -27,4 +27,5 @@ description: Search the local knowledge base (imported documents) with vector to
 ## Answering
 
 - When using KB hits, mention citations as `[1]`, `[2]`, … matching each hit’s `sourceId`.
+- Chat is a short summary. Document lists and search hit tables appear on **Canvas** (host). Do not dump large Markdown tables in the reply. Optional: `ui_present` for headline/outline.
 - Always follow **no-delete-data**.

@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import type { Citation } from '@bluelamp/core';
+import type { CanvasArtifact, Citation } from '@bluelamp/core';
 import { getDb } from '../../db.js';
 
 export type PiFlowChatRole = 'user' | 'assistant' | 'system';
@@ -18,6 +18,7 @@ export type PiFlowChatMessage = {
   content: string;
   createdAt: number;
   citations?: Citation[];
+  artifacts?: CanvasArtifact[];
 };
 
 export type SessionBucket = 'today' | 'week' | 'older';
@@ -52,6 +53,16 @@ function parseCitations(raw: string | null | undefined): Citation[] | undefined 
   }
 }
 
+function parseArtifacts(raw: string | null | undefined): CanvasArtifact[] | undefined {
+  if (!raw?.trim()) return undefined;
+  try {
+    const parsed = JSON.parse(raw) as CanvasArtifact[];
+    return Array.isArray(parsed) ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function mapMessage(row: {
   id: string;
   session_id: string;
@@ -59,8 +70,10 @@ function mapMessage(row: {
   content: string;
   created_at: number;
   citations_json?: string | null;
+  artifacts_json?: string | null;
 }): PiFlowChatMessage {
   const citations = parseCitations(row.citations_json);
+  const artifacts = parseArtifacts(row.artifacts_json);
   return {
     id: row.id,
     sessionId: row.session_id,
@@ -68,6 +81,7 @@ function mapMessage(row: {
     content: row.content,
     createdAt: row.created_at,
     ...(citations?.length ? { citations } : {}),
+    ...(artifacts?.length ? { artifacts } : {}),
   };
 }
 
@@ -163,7 +177,7 @@ export function renameSession(id: string, title: string): PiFlowChatSession | nu
 export function listMessages(sessionId: string): PiFlowChatMessage[] {
   const rows = getDb()
     .prepare(
-      `SELECT id, session_id, role, content, created_at, citations_json
+      `SELECT id, session_id, role, content, created_at, citations_json, artifacts_json
        FROM piflow_messages WHERE session_id = ? ORDER BY created_at ASC, rowid ASC`,
     )
     .all(sessionId) as Array<{
@@ -173,6 +187,7 @@ export function listMessages(sessionId: string): PiFlowChatMessage[] {
     content: string;
     created_at: number;
     citations_json?: string | null;
+    artifacts_json?: string | null;
   }>;
   return rows.map(mapMessage);
 }
@@ -183,6 +198,7 @@ export function appendMessage(
   content: string,
   createdAt = Date.now(),
   citations?: Citation[],
+  artifacts?: CanvasArtifact[],
 ): PiFlowChatMessage {
   const session = getSession(sessionId);
   if (!session) throw new Error(`Session not found: ${sessionId}`);
@@ -194,17 +210,20 @@ export function appendMessage(
     content,
     createdAt,
     ...(citations?.length ? { citations } : {}),
+    ...(artifacts?.length ? { artifacts } : {}),
   };
 
   const citationsJson =
     citations && citations.length > 0 ? JSON.stringify(citations) : null;
+  const artifactsJson =
+    artifacts && artifacts.length > 0 ? JSON.stringify(artifacts) : null;
 
   const database = getDb();
   const tx = database.transaction(() => {
     database
       .prepare(
-        `INSERT INTO piflow_messages (id, session_id, role, content, created_at, citations_json)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO piflow_messages (id, session_id, role, content, created_at, citations_json, artifacts_json)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         message.id,
@@ -213,6 +232,7 @@ export function appendMessage(
         message.content,
         message.createdAt,
         citationsJson,
+        artifactsJson,
       );
 
     const title =

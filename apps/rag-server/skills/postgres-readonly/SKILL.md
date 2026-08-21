@@ -19,6 +19,11 @@ description: Answer questions with read-only Postgres tools. Use pg_list_schemas
 4. If Postgres is not configured, say so and point to Settings → Postgres.
 5. Always follow **no-delete-data**.
 
+## Canvas
+
+- Host already puts `pg_query` (and schema list/describe) rows on the **Canvas** table. Do **not** paste the full grid into chat.
+- Chat: one-sentence conclusion + 3–7 outline bullets. Optionally call `ui_present` to set `title` / `headline` / `outline`.
+
 ## Information source (no web)
 
 - Live answers about DB state come only from `pg_*` tools (and KB via `kb_*` when docs are needed).
