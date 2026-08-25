@@ -5,7 +5,7 @@ $env:Path = [System.Environment]::GetEnvironmentVariable('Path', 'Machine') + ';
 Set-Location 'D:\dev\raglamp'
 
 if ($env:SKIP_BUILD -ne '1') {
-  Write-Host 'building portable package...'
+  Write-Host 'building windows installer...'
   pnpm build:windows
   if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
@@ -36,10 +36,26 @@ if (Test-Path $appData) {
 }
 Remove-Item $empty -Recurse -Force -ErrorAction SilentlyContinue
 
-$exe = 'D:\dev\raglamp\dist-windows\piFlow\piFlow.exe'
-if (-not (Test-Path $exe)) {
-  $exe = 'D:\dev\raglamp\dist-windows\RAG-Assistant\RAG Assistant.exe'
+$setup = Get-ChildItem 'D:\dev\raglamp\dist-windows\*-setup.exe' -ErrorAction SilentlyContinue |
+  Sort-Object LastWriteTime -Descending |
+  Select-Object -First 1
+$exe = $null
+if ($setup) {
+  Write-Host ("installing {0} ..." -f $setup.FullName)
+  Start-Process -FilePath $setup.FullName -ArgumentList '/S' -Wait
+  $exe = Join-Path $env:LOCALAPPDATA 'piFlow\piFlow.exe'
+  if (-not (Test-Path $exe)) {
+    $exe = Join-Path ${env:ProgramFiles} 'piFlow\piFlow.exe'
+  }
 }
+if (-not $exe -or -not (Test-Path $exe)) {
+  $exe = 'D:\dev\raglamp\dist-windows\piFlow\piFlow.exe'
+}
+if (-not (Test-Path $exe)) {
+  Write-Host 'SETUP EXE / PORTABLE EXE MISSING'
+  exit 1
+}
+Write-Host ("starting {0}" -f $exe)
 Start-Process $exe
 $ok = $false
 for ($i = 0; $i -lt 120; $i++) {

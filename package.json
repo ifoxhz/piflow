@@ -13,8 +13,9 @@
     "models:download": "tsx scripts/models-ensure.ts --force",
     "bundle:windows-sidecar": "node scripts/bundle-windows-sidecar.mjs",
     "package:windows-portable": "node scripts/package-windows-portable.mjs",
+    "package:windows-installer": "node scripts/package-windows-installer.mjs",
     "seed:empty-db": "node scripts/prepare-empty-piflow-db.mjs",
-    "build:windows": "pnpm bundle:windows-sidecar && pnpm --filter @bluelamp/desktop exec tauri build --no-bundle && pnpm package:windows-portable"
+    "build:windows": "pnpm bundle:windows-sidecar && pnpm --filter @bluelamp/desktop exec tauri build --bundles nsis && pnpm package:windows-installer"
   },
   "devDependencies": {
     "tsx": "^4.19.4",

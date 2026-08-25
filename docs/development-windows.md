@@ -12,8 +12,8 @@
 |------|----------------|
 | Windows 上开发运行（Node + 浏览器） | ✅ |
 | Windows 上 `tauri dev`（系统选文件夹） | ✅（需本机起 `rag-server`） |
-| `pnpm build:windows` 出便携包（含 sidecar，模型首次下载） | ✅ |
-| 解压即用（导入/向量检索；Ollama 可选） | ✅ 首版（无 OCR / 无本地 LLM；BGE-M3 启动时下载） |
+| `pnpm build:windows` 出 NSIS 安装包（含 sidecar，模型首次下载） | ✅ |
+| 安装后即用（导入/向量检索；Ollama 可选） | ✅ 首版（无 OCR / 无本地 LLM；BGE-M3 启动时下载） |
 
 ---
 
@@ -153,24 +153,24 @@ pnpm tauri dev
 
 ---
 
-## 5. 编译便携包（含 sidecar）
+## 5. 编译 Windows 安装包（NSIS）
 
 前置：Rust + VS Build Tools；本机 `node.exe` 可被打包脚本复制。无需预先 `pnpm models:ensure`。
 
-> 说明：BGE-M3 ONNX ≈ 1.1GB **不打进包内**。首次启动自动下载到 `%APPDATA%\piFlow\models\`，Settings 同时给出手摆路径与镜像地址。
+> 说明：BGE-M3 ONNX ≈ 1.1GB **不打进包内**。安装后首次启动自动下载到 `%APPDATA%\piFlow\models\`，Settings 同时给出手摆路径与镜像地址。安装过程会解压 `rag-server` 到 AppData，避免第一次打开软件再等解压。
 
 ```powershell
 cd D:\dev\raglamp
 pnpm build:windows
 ```
 
-步骤：`bundle:windows-sidecar` → `tauri build --no-bundle` → `package:windows-portable`。  
-`rag-server` 以 zip 随附，首次启动解压到 `%APPDATA%\piFlow\sidecar\`；嵌入模型下载到 `%APPDATA%\piFlow\models\`。
+步骤：`bundle:windows-sidecar` → `tauri build --bundles nsis` → `package:windows-installer`。
 
-- [ ] 产物：  
-  `dist-windows\piFlow\` 与 `dist-windows\piFlow-0.1.0-portable.zip`
-- [ ] 解压后运行 `piFlow.exe`；无需手起 `pnpm dev:server`
+- [ ] 产物：`dist-windows\piFlow-0.1.0-x64-setup.exe`
+- [ ] 双击安装后运行 piFlow；无需手起 `pnpm dev:server`
 - [ ] 未配置 Ollama 时可导入 + 检索摘要；配置 Ollama 后可生成回答
+
+绿色版 zip 仍可用：`pnpm package:windows-portable`（在 Tauri 编译之后）。
 
 ---
 
@@ -205,7 +205,7 @@ pnpm build:windows
 首版便携包含 Node 运行时 + rag-server zip；BGE-M3 首次启动下载到 `%APPDATA%\piFlow\models\`。可选后续：
 
 - [ ] 随包 / 可选下载 OCR（PP-OCR）
-- [ ] NSIS 双击安装包；CI 自动 `build:windows`
+- [ ] NSIS 安装包；CI 自动 `build:windows`
 - [ ] （可选）代码签名
 - [ ] 安装包体积优化（裁剪 `node-llama-cpp` / paddleocr 等未用路径）
 

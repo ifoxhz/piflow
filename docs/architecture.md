@@ -769,7 +769,7 @@ piflow/
                             ▼
 ┌─────────────────────────────────────────────────────────────┐
 │  Phase B — Windows 发布                                       │
-│  pnpm build:windows → dist-windows/piFlow/ + portable.zip     │
+│  pnpm build:windows → dist-windows/piFlow-*-x64-setup.exe     │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -792,7 +792,7 @@ piflow/
 | 模型 | 开发：`{repo}/models`；便携包：资源目录 / 用户目录 |
 | Sidecar | zip 解压到 `%APPDATA%\piFlow\sidecar\`，内嵌 `node.exe` 启停 |
 | 内存建议 | ≥ 16 GB RAM |
-| 安装形态 | **便携 zip**（BGE-M3 不内嵌，首次启动下载到 `%APPDATA%\piFlow\models\`） |
+| 安装形态 | **NSIS 安装包**（BGE-M3 不内嵌，首次启动下载到 `%APPDATA%\piFlow\models\`） |
 | Tauri 权限 | `capabilities/default.json`（dialog、opener、`$APPDATA/piFlow/**`） |
 
 ### 7.2 WSL 开发环境

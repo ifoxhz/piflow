@@ -108,9 +108,9 @@ pnpm dev
 | `PIFLOW_USE_LOCAL_LLM` | 设为 `true` 启用本地 GGUF 生成（无需 Ollama） |
 | `PIFLOW_OLLAMA_URL` / `PIFLOW_OLLAMA_MODEL` | 远程 Ollama 端点与模型 |
 
-## Windows 便携包
+## Windows 安装包
 
-请在 **Windows 本机**打包（不要只在 WSL 里打 Windows 包）。嵌入模型 BGE-M3（~1.1GB）**不打进包内**：首次启动自动下载到 `%APPDATA%\piFlow\models\`，也可在 Settings 查看路径与下载地址后手动放置。
+请在 **Windows 本机**打包（不要只在 WSL 里打 Windows 包）。产物是 **NSIS 安装程序**（`.exe` 安装包）。嵌入模型 BGE-M3（~1.1GB）**不打进包内**：安装后首次启动自动下载到 `%APPDATA%\piFlow\models\`，也可在 Settings 查看路径与下载地址后手动放置。
 
 ### 前置
 
@@ -132,17 +132,18 @@ pnpm build:windows
 `pnpm build:windows` 依次会：
 
 1. `bundle:windows-sidecar` — 打包 Node runtime、`rag-server`、模型清单（不含权重）到 Tauri resources  
-2. `tauri build --no-bundle` — 编译 `piFlow.exe`  
-3. `package:windows-portable` — 组装便携目录并打 zip  
+2. `tauri build --bundles nsis` — 编译并生成 NSIS 安装包  
+3. `package:windows-installer` — 复制到 `dist-windows/`
+
+需要绿色版 zip 时，可另跑 `pnpm package:windows-portable`（须已完成一次 Tauri 编译）。
 
 ### 产物
 
 | 路径 | 说明 |
 |------|------|
-| `dist-windows/piFlow/` | 可直接运行的文件夹 |
-| `dist-windows/piFlow-<version>-portable.zip` | 同上内容的压缩包 |
+| `dist-windows/piFlow-<version>-x64-setup.exe` | Windows 安装包（NSIS） |
 
-解压后运行 **`piFlow.exe`**。首次启动会把后端解压到 `%APPDATA%\piFlow\sidecar\`，并把 BGE-M3 下载到 `%APPDATA%\piFlow\models\`；用户数据 / 数据库 / 日志也在 `%APPDATA%\piFlow\`。
+双击安装。安装过程会解压后端到 `%APPDATA%\piFlow\sidecar\`；BGE-M3 在首次启动时下载到 `%APPDATA%\piFlow\models\`；用户数据 / 数据库 / 日志也在 `%APPDATA%\piFlow\`。
 
 LLM 在 Settings 中配置 Ollama 或 DeepSeek；未配置时仍可导入与检索。
 
@@ -172,7 +173,7 @@ docs/             架构文档、用户手册与 ADR
 
 ## 路线图
 
-- **阶段 1 — MVP（进行中）**：monorepo 脚手架、RAG sidecar、文档导入、带引用的聊天、模型管理；Windows 便携包（`pnpm build:windows`）
+- **阶段 1 — MVP（进行中）**：monorepo 脚手架、RAG sidecar、文档导入、带引用的聊天、模型管理；Windows 安装包（`pnpm build:windows`）
 - **阶段 2 — 体验**：Docling 处理复杂文档、混合检索（BM25 + dense RRF）、模型下载 UI、推理轨迹可视化
 - **阶段 3 — Windows 增强**：安装包体积优化、可选 OCR、CUDA 检测
 - **阶段 4 — 进阶**：多个隔离的知识库、多轮上下文管理、可插拔文档源

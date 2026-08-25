@@ -769,7 +769,7 @@ piflow/
                             ▼
 ┌─────────────────────────────────────────────────────────────┐
 │  Phase B — Windows 发布                                       │
-│  pnpm build:windows → dist-windows/piFlow/ + portable.zip     │
+│  pnpm build:windows → dist-windows/piFlow-*-x64-setup.exe     │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -792,7 +792,7 @@ Detailed commands: [development-wsl.md](development-wsl.md), [development-window
 | Models | Dev: `{repo}/models`; portable: resource / user directory |
 | Sidecar | Zip extract to `%APPDATA%\piFlow\sidecar\`; embedded `node.exe` lifecycle |
 | Memory recommendation | ≥ 16 GB RAM |
-| Install form | **Portable zip** (BGE-M3 not bundled; downloaded on first launch) |
+| Install form | **NSIS installer** (BGE-M3 not bundled; downloaded on first launch) |
 | Tauri permissions | `capabilities/default.json` (dialog, opener, `$APPDATA/piFlow/**`) |
 
 ### 7.2 WSL Development Environment

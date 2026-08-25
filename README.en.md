@@ -108,9 +108,9 @@ Key environment variables (full list in [.env.example](.env.example)):
 | `PIFLOW_USE_LOCAL_LLM` | Set `true` for local GGUF generation (no Ollama needed) |
 | `PIFLOW_OLLAMA_URL` / `PIFLOW_OLLAMA_MODEL` | Remote Ollama endpoint and model |
 
-## Windows portable package
+## Windows installer
 
-Build on a **native Windows** machine (not WSL-only). The BGE-M3 embedding model (~1.1 GB) is **not** bundled: it downloads on first launch into `%APPDATA%\piFlow\models\`, or you can place the files yourself (Settings shows the path and URLs).
+Build on a **native Windows** machine (not WSL-only). The release is an **NSIS setup `.exe`**. The BGE-M3 embedding model (~1.1 GB) is **not** bundled: it downloads on first launch into `%APPDATA%\piFlow\models\`, or you can place the files yourself (Settings shows the path and URLs).
 
 ### Prerequisites
 
@@ -132,17 +132,18 @@ pnpm build:windows
 `pnpm build:windows` runs:
 
 1. `bundle:windows-sidecar` — pack Node runtime, `rag-server`, and the model manifest (no weights) into Tauri resources  
-2. `tauri build --no-bundle` — compile `piFlow.exe`  
-3. `package:windows-portable` — assemble the portable folder and zip  
+2. `tauri build --bundles nsis` — compile and build the NSIS installer  
+3. `package:windows-installer` — copy the setup exe to `dist-windows/`
+
+For a portable zip, run `pnpm package:windows-portable` after a Tauri build.
 
 ### Artifacts
 
 | Path | Description |
 |------|-------------|
-| `dist-windows/piFlow/` | Runnable folder |
-| `dist-windows/piFlow-<version>-portable.zip` | Same contents as a zip |
+| `dist-windows/piFlow-<version>-x64-setup.exe` | Windows installer (NSIS) |
 
-Unzip and run **`piFlow.exe`**. First launch extracts the backend under `%APPDATA%\piFlow\sidecar\` and downloads BGE-M3 into `%APPDATA%\piFlow\models\`; user data / DB / logs live in `%APPDATA%\piFlow\`.
+Run the setup exe. Installation extracts the backend under `%APPDATA%\piFlow\sidecar\`; first launch downloads BGE-M3 into `%APPDATA%\piFlow\models\`; user data / DB / logs live in `%APPDATA%\piFlow\`.
 
 Configure Ollama or DeepSeek in Settings; import and retrieval work without a generation backend.
 
@@ -174,7 +175,7 @@ docs/             Architecture docs, user manual, and ADRs (in Chinese)
 
 ## Roadmap
 
-- **Phase 1 — MVP (in progress)**: monorepo scaffolding, RAG sidecar, document ingestion, chat with citations, model management; Windows portable package (`pnpm build:windows`)
+- **Phase 1 — MVP (in progress)**: monorepo scaffolding, RAG sidecar, document ingestion, chat with citations, model management; Windows installer (`pnpm build:windows`)
 - **Phase 2 — Experience**: Docling for complex documents, hybrid retrieval (BM25 + dense RRF), model download UI, reasoning-trace visualization
 - **Phase 3 — Windows hardening**: package size optimization, optional OCR, CUDA detection
 - **Phase 4 — Advanced**: multiple isolated knowledge bases, multi-turn context management, pluggable document sources

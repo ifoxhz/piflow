@@ -1,13 +1,13 @@
 ---
 title: "piFlow 用户使用手册"
-subtitle: "Windows 便携版 · v0.3"
+subtitle: "Windows 安装包 · v0.4"
 author: "piFlow"
 ---
 
 # piFlow 用户使用手册
 
-**版本**：v0.3  
-**适用平台**：Windows 10 / 11（便携包）  
+**版本**：v0.4  
+**适用平台**：Windows 10 / 11（NSIS 安装包）  
 **更新日期**：2026-08
 
 ---
@@ -62,29 +62,22 @@ author: "piFlow"
 
 ## 3. 安装与启动
 
-### 3.1 获取与解压
+### 3.1 获取与安装
 
-1. 获得压缩包，例如：`piFlow-0.1.0-portable.zip`  
-2. 解压到较短路径，例如：`D:\apps\piFlow`  
-   - 避免过深路径或仅含中文/特殊符号的路径，以减少首次解压失败概率  
-3. 进入解压目录（文件夹名一般为 `piFlow`），确认至少包含：
+1. 获得安装包，例如：`piFlow-0.1.0-x64-setup.exe`  
+2. 双击运行安装向导（可装到当前用户目录或 Program Files）  
+3. 安装过程会把后端解压到 `%APPDATA%\piFlow\sidecar\`（可能需要一两分钟）  
 
-| 文件 / 目录 | 作用 |
-|-------------|------|
-| `piFlow.exe` | 主程序 |
-| `runtime\` | 内置 Node 运行时 |
-| `models\` | 模型清单（权重首次启动下载） |
-| `rag-server.zip` | RAG 后端包（首次启动解压） |
-| `README.txt` | 简要说明 |
+从开始菜单或桌面快捷方式启动 **piFlow**。
 
 ### 3.2 首次启动
 
-1. 双击 **`piFlow.exe`**  
-2. 首次启动会自动将后端解压到 `%APPDATA%\piFlow\sidecar\`，并把嵌入模型 BGE-M3（约 1.1 GB）下载到 `%APPDATA%\piFlow\models\`。也可在 **Settings → 嵌入模型** 查看放置路径与下载地址后自行下载。  
+1. 双击 **piFlow**（开始菜单 / 桌面快捷方式）  
+2. 首次启动会把嵌入模型 BGE-M3（约 1.1 GB）下载到 `%APPDATA%\piFlow\models\`。也可在 **Settings → 嵌入模型** 查看放置路径与下载地址后自行下载。  
 3. 等待窗口打开；后端默认监听本机端口 **`3847`**  
-4. 若杀毒软件拦截，请将安装目录与上述 AppData 目录加入白名单后重试  
+4. 若杀毒软件拦截，请将安装目录与 `%APPDATA%\piFlow\` 加入白名单后重试  
 
-> **说明**：知识库与对话历史保存在 `%APPDATA%\piFlow\`（SQLite，含向量），**不在**便携 zip 内。重新解压安装包不会清空旧数据；若要全新环境，请先退出程序并删除该目录。便携包仅附带空库种子（`seed/piflow.db`），仅在数据目录尚无数据库时用于初始化。
+> **说明**：知识库与对话历史保存在 `%APPDATA%\piFlow\`（SQLite，含向量），**不在**安装目录内。重装不会清空旧数据；若要全新环境，请先退出程序并删除该目录。安装包仅附带空库种子，仅在数据目录尚无数据库时用于初始化。
 
 ### 3.3 日常启动
 
@@ -99,7 +92,7 @@ author: "piFlow"
 | 后端解压目录 | `%APPDATA%\piFlow\sidecar\` |
 | 开发态数据目录 | 仓库内 `.data\`（含 `piflow.db`、Ollama / Postgres / piFlow 配置） |
 
-卸载或清理时：退出程序后删除便携文件夹；如需彻底清除数据，再删除上述 AppData 目录。
+卸载或清理时：用系统「应用和功能」卸载 piFlow；如需彻底清除数据，再删除 `%APPDATA%\piFlow\`。
 
 ---
 
@@ -383,13 +376,13 @@ ollama pull <你的模型名>
 |----|-----|
 | RAG / piFlow 服务 | `http://127.0.0.1:3847` |
 | 健康检查 | `http://127.0.0.1:3847/health` |
-| 用户数据（便携） | `%APPDATA%\piFlow\` |
+| 用户数据 | `%APPDATA%\piFlow\` |
 | 开发态数据 | 仓库 `.data\` |
 
 ### 12.2 版本信息
 
-- 产品版本：与便携包 `README.txt` / `BUNDLE_INFO.json` 中标注一致  
-- 手册版本：**v0.3**（便携包包名统一为 `piFlow-*-portable.zip`；主对话为 piFlow + Knowledge skill）  
+- 产品版本：与安装包 / `BUNDLE_INFO.json` 中标注一致  
+- 手册版本：**v0.4**（Windows 安装包 `piFlow-*-x64-setup.exe`；主对话为 piFlow + Knowledge skill）  
 
 ### 12.3 获取帮助
 
