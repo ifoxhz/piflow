@@ -220,7 +220,8 @@ fn spawn_rag_server(app: &AppHandle) -> Result<(), String> {
         .map_err(|e| format!("app_data_dir: {e}"))?;
 
     let node = resource_dir.join("runtime").join("node.exe");
-    let models_dir = resource_dir.join("models");
+    let models_dir = data_dir.join("models");
+    let bundled_models = resource_dir.join("models");
 
     if !node.exists() {
         // Dev mode: UI talks to an externally started rag-server.
@@ -241,6 +242,14 @@ fn spawn_rag_server(app: &AppHandle) -> Result<(), String> {
     }
 
     fs::create_dir_all(&data_dir).map_err(|e| format!("create data dir: {e}"))?;
+    fs::create_dir_all(&models_dir).map_err(|e| format!("create models dir: {e}"))?;
+    let bundled_manifest = bundled_models.join("manifest.json");
+    let dest_manifest = models_dir.join("manifest.json");
+    if bundled_manifest.exists() && !dest_manifest.exists() {
+        if let Err(e) = fs::copy(&bundled_manifest, &dest_manifest) {
+            eprintln!("[rag-sidecar] copy manifest: {e}");
+        }
+    }
     seed_empty_database(&data_dir, &resource_dir)?;
     let log_dir = data_dir.join("logs");
     fs::create_dir_all(&log_dir).map_err(|e| format!("mkdir logs: {e}"))?;
@@ -261,6 +270,7 @@ fn spawn_rag_server(app: &AppHandle) -> Result<(), String> {
         .env("PIFLOW_RAG_PORT", RAG_PORT)
         .env("PIFLOW_DATA_DIR", &data_dir)
         .env("PIFLOW_MODELS_DIR", &models_dir)
+        .env("PIFLOW_BUNDLE_MODELS_DIR", &bundled_models)
         .env("PIFLOW_USE_LOCAL_LLM", "false")
         .env("PIFLOW_PREFER_LOCAL_LLM", "false")
         .env("PIFLOW_USE_PLEIAS", "false")

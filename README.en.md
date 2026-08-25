@@ -8,7 +8,7 @@ piFlow is a retrieval-augmented generation (RAG) desktop application: import loc
 
 The main chat is driven by the **piFlow Agent** (Pi harness): the knowledge base is exposed as Skill / Tools (`kb_*`), with optional Postgres read-only and local filesystem Skills.
 
-![Demo video](docs/piFlow-full-middle-3x.gif)
+![Demo video](docs/piFlow-demo.gif)
 
 [Watch full-quality video](docs/piFlow-full-middle-3x.mp4)
 
@@ -110,14 +110,13 @@ Key environment variables (full list in [.env.example](.env.example)):
 
 ## Windows portable package
 
-Build on a **native Windows** machine (not WSL-only). Because the bundled BGE-M3 model is large, the release is a **portable folder + zip**, not NSIS/MSI.
+Build on a **native Windows** machine (not WSL-only). The BGE-M3 embedding model (~1.1 GB) is **not** bundled: it downloads on first launch into `%APPDATA%\piFlow\models\`, or you can place the files yourself (Settings shows the path and URLs).
 
 ### Prerequisites
 
 - Node.js ≥ 20, pnpm 10, Git
 - Rust (`x86_64-pc-windows-msvc`) + Visual Studio Build Tools (Desktop development with C++)
 - WebView2 Runtime (usually already on Win10/11)
-- Embedding model downloaded: `pnpm models:ensure` (local BGE-M3 required)
 
 Full checklist: [docs/development-windows.md](docs/development-windows.md).
 
@@ -127,14 +126,12 @@ From the repo root (PowerShell):
 
 ```powershell
 pnpm install
-$env:HF_ENDPOINT="https://hf-mirror.com"
-pnpm models:ensure
 pnpm build:windows
 ```
 
 `pnpm build:windows` runs:
 
-1. `bundle:windows-sidecar` — pack Node runtime, `rag-server`, and models into Tauri resources  
+1. `bundle:windows-sidecar` — pack Node runtime, `rag-server`, and the model manifest (no weights) into Tauri resources  
 2. `tauri build --no-bundle` — compile `piFlow.exe`  
 3. `package:windows-portable` — assemble the portable folder and zip  
 
@@ -145,7 +142,7 @@ pnpm build:windows
 | `dist-windows/piFlow/` | Runnable folder |
 | `dist-windows/piFlow-<version>-portable.zip` | Same contents as a zip |
 
-Unzip and run **`piFlow.exe`**. First launch extracts the backend under `%APPDATA%\piFlow\sidecar\`; user data / DB / logs live in `%APPDATA%\piFlow\`.
+Unzip and run **`piFlow.exe`**. First launch extracts the backend under `%APPDATA%\piFlow\sidecar\` and downloads BGE-M3 into `%APPDATA%\piFlow\models\`; user data / DB / logs live in `%APPDATA%\piFlow\`.
 
 Configure Ollama or DeepSeek in Settings; import and retrieval work without a generation backend.
 

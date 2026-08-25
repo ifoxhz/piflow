@@ -1,7 +1,7 @@
 import { Worker } from 'node:worker_threads';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { getModelsDir } from '../../platform/paths.js';
+import { getRuntimeModelsDir, assertRequiredEmbeddingReadySync } from '../../model-manager.js';
 
 export const QUERY_PREFIX =
   'Represent this sentence for searching relevant passages: ';
@@ -43,7 +43,7 @@ function ensureWorker(): Worker {
 
   worker = new Worker(entry, {
     workerData: {
-      modelsDir: getModelsDir(),
+      modelsDir: getRuntimeModelsDir(),
       hfHost:
         process.env.HF_ENDPOINT ?? process.env.PIFLOW_HF_MIRROR ?? 'https://hf-mirror.com',
       progressEvery: PROGRESS_EVERY,
@@ -128,6 +128,7 @@ function ensureWorker(): Worker {
 
 function embedViaWorker(texts: string[], options: EmbedOptions = {}): Promise<Float32Array[]> {
   if (texts.length === 0) return Promise.resolve([]);
+  assertRequiredEmbeddingReadySync();
   const w = ensureWorker();
   const id = nextId++;
   return new Promise<Float32Array[]>((resolve, reject) => {

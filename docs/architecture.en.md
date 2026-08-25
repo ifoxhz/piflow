@@ -595,9 +595,8 @@ interface DownloadProgress {
 | Method | Purpose |
 |------|------|
 | `pnpm models:ensure` | Dev script: read manifest, validate, download missing models |
-| `pnpm models:download -- --force embedding.bge-m3` | Force re-download a specific model |
-| rag-server startup `ensure()` | Auto-complete missing models at runtime |
-| Settings “Re-download model” | Phase 2 UI; calls `POST /models/{id}/download?force=1` |
+| rag-server startup `ensure(embedding.bge-m3)` | Auto-download the required embedding model |
+| Settings auto-download + manual path/URLs | `POST /models/{id}/download`; catalog from `GET /models` |
 
 Scripts prefer `huggingface-cli` (with `HF_ENDPOINT`); without CLI, fall back to HTTP pulls from `hf-mirror.com/{hubId}/resolve/main/{file}`.
 
@@ -606,7 +605,7 @@ Scripts prefer `huggingface-cli` (with `HF_ENDPOINT`); without CLI, fall back to
 | Environment | `PIFLOW_MODELS_DIR` / `env.localModelPath` |
 |------|-----------------------------------------------|
 | Development (in-repo) | `{repoRoot}/models` |
-| Production (user dir) | `%APPDATA%\piFlow\` (portable shell injects `PIFLOW_DATA_DIR`; models often ship with / beside the package) |
+| Production (user dir) | `%APPDATA%\piFlow\models\` (portable shell injects `PIFLOW_MODELS_DIR`) |
 
 When Transformers.js loads a local model, `pipeline('feature-extraction', 'Xenova/bge-m3')` resolves to `{localModelPath}/Xenova/bge-m3/`.
 
@@ -781,7 +780,7 @@ Detailed commands: [development-wsl.md](development-wsl.md), [development-window
 | React UI, API integration | Tauri window & system folder picker |
 | BGE-M3 / parsing / import (CPU) | Portable package first-run Sidecar extract |
 | SQLite, vector index, piFlow | `%APPDATA%\piFlow\` data directory |
-| `pnpm models:ensure` | Bundled BGE-M3 ships with the package |
+| `pnpm models:ensure` | Manifest shipped; weights download on first launch |
 
 ### 7.1 Windows (First Release Target)
 
@@ -793,7 +792,7 @@ Detailed commands: [development-wsl.md](development-wsl.md), [development-window
 | Models | Dev: `{repo}/models`; portable: resource / user directory |
 | Sidecar | Zip extract to `%APPDATA%\piFlow\sidecar\`; embedded `node.exe` lifecycle |
 | Memory recommendation | ≥ 16 GB RAM |
-| Install form | **Portable zip** (BGE-M3 ≈ 1.1 GB; NSIS/MSI deferred) |
+| Install form | **Portable zip** (BGE-M3 not bundled; downloaded on first launch) |
 | Tauri permissions | `capabilities/default.json` (dialog, opener, `$APPDATA/piFlow/**`) |
 
 ### 7.2 WSL Development Environment

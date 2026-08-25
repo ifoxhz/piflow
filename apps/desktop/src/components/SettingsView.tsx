@@ -17,6 +17,7 @@ import {
   type PostgresConfig,
 } from '../api/piflow';
 import { notifyPiFlowSkillsChanged } from '../lib/piflowEvents';
+import { EmbeddingModelSettings } from './EmbeddingModelSettings';
 
 interface SettingsViewProps {
   health: HealthResponse | null;
@@ -466,6 +467,8 @@ export function SettingsView({ health, healthError }: SettingsViewProps) {
         </div>
       </section>
 
+      <EmbeddingModelSettings />
+
       <section className="settings-section">
         <h3>Knowledge RAG（piFlow skill）</h3>
         <p className="settings-hint settings-hint-top">
@@ -646,25 +649,11 @@ export function SettingsView({ health, healthError }: SettingsViewProps) {
         <h3>RAG Server</h3>
         {healthError && <p className="status-error">{healthError}</p>}
         {health && (
-          <ul className="model-status-list">
-            <li>
-              Status: <strong>{health.status}</strong>
-            </li>
-            {health.models?.map((m) => (
-              <li key={m.id}>
-                {m.id}: <strong>{m.status}</strong>
-                {m.missingFiles && m.missingFiles.length > 0 && (
-                  <span className="missing-files"> — missing {m.missingFiles.join(', ')}</span>
-                )}
-              </li>
-            ))}
-          </ul>
+          <p className="settings-ollama-status">
+            Status: <strong className={health.status === 'ok' ? 'status-ok' : 'status-warn'}>{health.status}</strong>
+          </p>
         )}
         {!health && !healthError && <p>Checking server...</p>}
-        <p className="settings-hint">
-          Run <code>pnpm dev:server</code> and <code>pnpm models:ensure</code> to download models
-          via hf-mirror.com.
-        </p>
       </section>
 
       <section className="settings-section">

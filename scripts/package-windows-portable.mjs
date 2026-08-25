@@ -1,5 +1,6 @@
 /**
- * Assemble a portable Windows folder + zip (NSIS/MSI cannot pack ~1GB ONNX reliably).
+ * Assemble a portable Windows folder + zip.
+ * Embedding weights are not bundled; the app downloads BGE-M3 on first launch.
  *
  * Expects:
  *   - apps/desktop/src-tauri/target/release/appsdesktop.exe  (tauri build --no-bundle)
@@ -62,9 +63,11 @@ writeFileSync(
     '1. Unzip this folder anywhere (prefer a short path, e.g. D:\\apps\\piFlow).',
     '2. Run "piFlow.exe".',
     '3. First launch extracts the backend under %APPDATA%\\piFlow\\sidecar\\.',
-    '4. Knowledge base + chat history live in %APPDATA%\\piFlow\\ (NOT inside this zip).',
+    '4. The embedding model (BGE-M3, ~1.1 GB) downloads automatically to',
+    '   %APPDATA%\\piFlow\\models\\  — or download it yourself (Settings shows the path and URLs).',
+    '5. Knowledge base + chat history live in %APPDATA%\\piFlow\\ (NOT inside this zip).',
     '   Re-unzipping does not clear old data. To start fresh, delete that folder.',
-    '5. Open Settings to configure LLM / Postgres / skills.',
+    '6. Open Settings to configure LLM / Postgres / skills.',
     '',
     `Version: ${version}`,
     '',

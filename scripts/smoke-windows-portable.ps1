@@ -30,9 +30,9 @@ if (Test-Path $sidecar) {
 if (Test-Path $appData) {
   Get-ChildItem $appData -File -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
   Get-ChildItem $appData -Directory -ErrorAction SilentlyContinue |
-    Where-Object { $_.Name -ne 'sidecar' } |
+    Where-Object { $_.Name -notin @('sidecar', 'models') } |
     Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
-  Write-Host 'app data cleared'
+  Write-Host 'app data cleared (models kept)'
 }
 Remove-Item $empty -Recurse -Force -ErrorAction SilentlyContinue
 
@@ -54,6 +54,20 @@ for ($i = 0; $i -lt 120; $i++) {
   }
 }
 if (-not $ok) { Write-Host 'HEALTH FAILED'; exit 1 }
+
+$embedOk = $false
+for ($i = 0; $i -lt 600; $i++) {
+  try {
+    $h = Invoke-RestMethod 'http://127.0.0.1:3847/health'
+    $emb = @($h.models) | Where-Object { $_.id -eq 'embedding.bge-m3' } | Select-Object -First 1
+    Write-Host ("embed {0}s status={1}" -f ($i * 3), $emb.status)
+    if ($emb.status -eq 'ready') { $embedOk = $true; break }
+  } catch {
+    Write-Host ("embed wait {0}s" -f ($i * 3))
+  }
+  Start-Sleep 3
+}
+if (-not $embedOk) { Write-Host 'EMBED MODEL NOT READY'; exit 1 }
 
 $worker = Join-Path $env:APPDATA 'piFlow\sidecar\rag-server\dist\services\ingestion\embed-worker.js'
 $index = Join-Path $env:APPDATA 'piFlow\sidecar\rag-server\dist\index.js'

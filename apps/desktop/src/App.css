@@ -813,7 +813,7 @@ input {
   padding: 20px;
   background: #f5f5f7;
   border-radius: 12px;
-  max-width: 560px;
+  max-width: 720px;
 }
 
 .settings-section h3 {
@@ -1252,6 +1252,38 @@ input {
 .settings-actions-row {
   justify-content: flex-end;
   gap: 10px;
+}
+
+.settings-actions-start {
+  justify-content: flex-start;
+  margin-bottom: 16px;
+}
+
+.settings-path-block {
+  display: block;
+  background: #e8e8ed;
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  word-break: break-all;
+  line-height: 1.45;
+}
+
+.model-download-list {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  word-break: break-all;
+}
+
+.model-download-list li {
+  margin-bottom: 8px;
+}
+
+.model-download-list a {
+  color: #0066cc;
 }
 
 /* ── piFlow view ── */

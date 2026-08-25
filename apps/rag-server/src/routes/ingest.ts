@@ -12,6 +12,7 @@ import {
 import { walkFolder } from '../services/ingestion/folder-walker.js';
 import { emitJobEvent, subscribeJob } from '../services/ingestion/events.js';
 import { normalizeImportPath } from '../platform/paths.js';
+import { isRequiredEmbeddingReady, REQUIRED_EMBEDDING_MODEL_ID } from '../model-manager.js';
 
 export const ingestRoutes = new Hono();
 
@@ -20,6 +21,17 @@ ingestRoutes.post('/folder', async (c) => {
   const rawPath = body.path?.trim();
   if (!rawPath) {
     return c.json({ error: 'path is required' }, 400);
+  }
+
+  if (!(await isRequiredEmbeddingReady())) {
+    return c.json(
+      {
+        error:
+          '嵌入模型尚未就绪。请到 Settings 自动下载 BGE-M3，或按说明手动放到模型目录后再导入。',
+        modelId: REQUIRED_EMBEDDING_MODEL_ID,
+      },
+      412,
+    );
   }
 
   if (getActiveJobId()) {

@@ -54,6 +54,12 @@ export function getModelsDir(): string {
   return process.env.PIFLOW_MODELS_DIR ?? path.join(getRepoRoot(), 'models');
 }
 
+/** Optional leftover / portable-folder models next to the exe. */
+export function getBundleModelsDir(): string | undefined {
+  const raw = process.env.PIFLOW_BUNDLE_MODELS_DIR?.trim();
+  return raw || undefined;
+}
+
 /** Windows path → WSL /mnt/c/... when server runs on Linux */
 export function normalizeImportPath(input: string): string {
   const trimmed = input.trim();

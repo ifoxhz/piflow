@@ -1,7 +1,7 @@
 # Windows 编译与运行清单
 
-> **目标**：在 Windows 本机把 piFlow 跑起来（开发态），并打出**可独立运行**的 MSI（含 Node sidecar + BGE-M3）。  
-> **现状**：开发态仍推荐 `pnpm dev:server` + `pnpm dev:ui`；发布用 `pnpm build:windows`（会打包 sidecar、内嵌 BGE-M3，启动时自动起 `rag-server`）。  
+> **目标**：在 Windows 本机把 piFlow 跑起来（开发态），并打出**可独立运行**的便携包（含 Node sidecar；BGE-M3 首次启动下载）。  
+> **现状**：开发态仍推荐 `pnpm dev:server` + `pnpm dev:ui`；发布用 `pnpm build:windows`（会打包 sidecar，启动时自动起 `rag-server` 并下载嵌入模型）。  
 > **远端 LLM**：生成走 Ollama（Settings 配置）；未配置时 Chat 返回检索摘要 + 引用。OCR / 本地 GGUF 首版不进安装包。
 
 ---
@@ -12,8 +12,8 @@
 |------|----------------|
 | Windows 上开发运行（Node + 浏览器） | ✅ |
 | Windows 上 `tauri dev`（系统选文件夹） | ✅（需本机起 `rag-server`） |
-| `pnpm build:windows` 出便携包（含 sidecar + BGE-M3） | ✅ |
-| 解压即用（导入/向量检索；Ollama 可选） | ✅ 首版（无 OCR / 无本地 LLM；因单文件 >1GB，不用 NSIS/MSI） |
+| `pnpm build:windows` 出便携包（含 sidecar，模型首次下载） | ✅ |
+| 解压即用（导入/向量检索；Ollama 可选） | ✅ 首版（无 OCR / 无本地 LLM；BGE-M3 启动时下载） |
 
 ---
 
@@ -155,9 +155,9 @@ pnpm tauri dev
 
 ## 5. 编译便携包（含 sidecar）
 
-前置：Rust + VS Build Tools；仓库内已有 BGE-M3（`pnpm models:ensure`）；本机 `node.exe` 可被打包脚本复制。
+前置：Rust + VS Build Tools；本机 `node.exe` 可被打包脚本复制。无需预先 `pnpm models:ensure`。
 
-> 说明：BGE-M3 ONNX ≈ 1.1GB，NSIS/MSI 无法可靠打包超大单文件，故首版发**便携 zip**（解压即用，多机部署同样方便）。
+> 说明：BGE-M3 ONNX ≈ 1.1GB **不打进包内**。首次启动自动下载到 `%APPDATA%\piFlow\models\`，Settings 同时给出手摆路径与镜像地址。
 
 ```powershell
 cd D:\dev\raglamp
@@ -165,7 +165,7 @@ pnpm build:windows
 ```
 
 步骤：`bundle:windows-sidecar` → `tauri build --no-bundle` → `package:windows-portable`。  
-`rag-server` 以 zip 随附，首次启动解压到 `%APPDATA%\piFlow\sidecar\`。
+`rag-server` 以 zip 随附，首次启动解压到 `%APPDATA%\piFlow\sidecar\`；嵌入模型下载到 `%APPDATA%\piFlow\models\`。
 
 - [ ] 产物：  
   `dist-windows\piFlow\` 与 `dist-windows\piFlow-0.1.0-portable.zip`
@@ -202,7 +202,7 @@ pnpm build:windows
 
 ## 8. 后续增强（首版之后）
 
-首版 MSI 已含 Node 运行时 + rag-server 目录 + BGE-M3，并由 Tauri 启停。可选后续：
+首版便携包含 Node 运行时 + rag-server zip；BGE-M3 首次启动下载到 `%APPDATA%\piFlow\models\`。可选后续：
 
 - [ ] 随包 / 可选下载 OCR（PP-OCR）
 - [ ] NSIS 双击安装包；CI 自动 `build:windows`
@@ -217,7 +217,7 @@ pnpm build:windows
 
 1. 装 Node / pnpm /（可选）Rust + VS Build Tools + WebView2  
 2. Windows 路径 clone，`pnpm install`，配置 `.env` 远端 Ollama  
-3. `pnpm models:ensure`  
+3. （推荐）`pnpm models:ensure embedding.bge-m3`，开发时不必等启动下载  
 4. `pnpm dev:server` + `pnpm dev:ui` → 浏览器跑通导入与聊天  
 5. Settings 确认 Ollama  
 6. 需要测选文件夹时再 `pnpm tauri dev`  

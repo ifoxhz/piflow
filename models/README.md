@@ -71,6 +71,6 @@ models/
 
 打包发布后，用户数据目录由壳注入（`PIFLOW_DATA_DIR`），Windows 便携版为：
 
-- Windows: `%APPDATA%\piFlow\`（模型亦可随便携包 `models/` 分发）
+- Windows: `%APPDATA%\piFlow\models\`（启动自动下载，或按 Settings 中的路径/URL 手动放置）
 
 开发阶段优先使用仓库内 `models/` 目录（`env.localModelPath` 指向项目根）。

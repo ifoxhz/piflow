@@ -594,9 +594,8 @@ interface DownloadProgress {
 | 方式 | 用途 |
 |------|------|
 | `pnpm models:ensure` | 开发脚本：读 manifest，校验并下载缺失模型 |
-| `pnpm models:download -- --force embedding.bge-m3` | 强制重新下载指定模型 |
-| rag-server 启动时 `ensure()` | 运行时自动补全缺失模型 |
-| 设置页「重新下载模型」 | Phase 2 UI，调用 `POST /models/{id}/download?force=1` |
+| rag-server 启动时 `ensure(embedding.bge-m3)` | 运行时自动补全必需嵌入模型 |
+| 设置页「自动下载」+ 手摆路径/URL | `POST /models/{id}/download`；清单来自 `GET /models` |
 
 脚本优先调用 `huggingface-cli`（配合 `HF_ENDPOINT`）；无 CLI 时回退到直接 HTTP 拉取 `hf-mirror.com/{hubId}/resolve/main/{file}`。
 
@@ -605,7 +604,7 @@ interface DownloadProgress {
 | 环境 | `PIFLOW_MODELS_DIR` / `env.localModelPath` |
 |------|-----------------------------------------------|
 | 开发（仓库内） | `{repoRoot}/models` |
-| 生产（用户目录） | `%APPDATA%\piFlow\`（便携版由壳注入 `PIFLOW_DATA_DIR`；模型常随包/同目录） |
+| 生产（用户目录） | `%APPDATA%\piFlow\models\`（便携版由壳注入 `PIFLOW_MODELS_DIR`） |
 
 Transformers.js 加载本地模型时，`pipeline('feature-extraction', 'Xenova/bge-m3')` 会解析为 `{localModelPath}/Xenova/bge-m3/`。
 
@@ -781,7 +780,7 @@ piflow/
 | React UI、API 联调 | Tauri 窗口与系统选文件夹 |
 | BGE-M3 / 解析 / 导入（CPU） | 便携包首次解压 sidecar |
 | SQLite、向量索引、piFlow | `%APPDATA%\piFlow\` 数据目录 |
-| `pnpm models:ensure` | 内嵌 BGE-M3 随包分发 |
+| `pnpm models:ensure` | 内嵌清单；权重首次启动下载 |
 
 ### 7.1 Windows（首发发布目标）
 
@@ -793,7 +792,7 @@ piflow/
 | 模型 | 开发：`{repo}/models`；便携包：资源目录 / 用户目录 |
 | Sidecar | zip 解压到 `%APPDATA%\piFlow\sidecar\`，内嵌 `node.exe` 启停 |
 | 内存建议 | ≥ 16 GB RAM |
-| 安装形态 | **便携 zip**（因 BGE-M3 ≈ 1.1GB，暂不用 NSIS/MSI） |
+| 安装形态 | **便携 zip**（BGE-M3 不内嵌，首次启动下载到 `%APPDATA%\piFlow\models\`） |
 | Tauri 权限 | `capabilities/default.json`（dialog、opener、`$APPDATA/piFlow/**`） |
 
 ### 7.2 WSL 开发环境

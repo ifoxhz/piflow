@@ -8,7 +8,7 @@ piFlow 是一款检索增强生成（RAG）桌面应用：导入本地文档构�
 
 主对话由 **piFlow Agent**（Pi harness）驱动：知识库以 Skill / Tools（`kb_*`）挂载，并可选用 Postgres 只读与本地文件 Skill。
 
-![运行效果视频](docs/piFlow-full-middle-3x.gif)
+![运行效果视频](docs/piFlow-demo.gif)
 
 [观看高清视频](docs/piFlow-full-middle-3x.mp4)
 
@@ -110,14 +110,13 @@ pnpm dev
 
 ## Windows 便携包
 
-请在 **Windows 本机**打包（不要只在 WSL 里打 Windows 包）。因内嵌 BGE-M3 体积很大，产物是**便携目录 + zip**，不是 NSIS/MSI。
+请在 **Windows 本机**打包（不要只在 WSL 里打 Windows 包）。嵌入模型 BGE-M3（~1.1GB）**不打进包内**：首次启动自动下载到 `%APPDATA%\piFlow\models\`，也可在 Settings 查看路径与下载地址后手动放置。
 
 ### 前置
 
 - Node.js ≥ 20、pnpm 10、Git
 - Rust（`x86_64-pc-windows-msvc`）+ Visual Studio Build Tools（C++ 桌面开发）
 - WebView2 Runtime（Win10/11 通常已有）
-- 已下载嵌入模型：`pnpm models:ensure`（需本机 BGE-M3）
 
 完整清单见 [docs/development-windows.md](docs/development-windows.md)。
 
@@ -127,14 +126,12 @@ pnpm dev
 
 ```powershell
 pnpm install
-$env:HF_ENDPOINT="https://hf-mirror.com"
-pnpm models:ensure
 pnpm build:windows
 ```
 
 `pnpm build:windows` 依次会：
 
-1. `bundle:windows-sidecar` — 打包 Node runtime、`rag-server`、模型等到 Tauri resources  
+1. `bundle:windows-sidecar` — 打包 Node runtime、`rag-server`、模型清单（不含权重）到 Tauri resources  
 2. `tauri build --no-bundle` — 编译 `piFlow.exe`  
 3. `package:windows-portable` — 组装便携目录并打 zip  
 
@@ -145,7 +142,7 @@ pnpm build:windows
 | `dist-windows/piFlow/` | 可直接运行的文件夹 |
 | `dist-windows/piFlow-<version>-portable.zip` | 同上内容的压缩包 |
 
-解压后运行 **`piFlow.exe`**。首次启动会把后端解压到 `%APPDATA%\piFlow\sidecar\`；用户数据 / 数据库 / 日志也在 `%APPDATA%\piFlow\`。
+解压后运行 **`piFlow.exe`**。首次启动会把后端解压到 `%APPDATA%\piFlow\sidecar\`，并把 BGE-M3 下载到 `%APPDATA%\piFlow\models\`；用户数据 / 数据库 / 日志也在 `%APPDATA%\piFlow\`。
 
 LLM 在 Settings 中配置 Ollama 或 DeepSeek；未配置时仍可导入与检索。
 

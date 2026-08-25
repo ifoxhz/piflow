@@ -73,15 +73,14 @@ author: "piFlow"
 |-------------|------|
 | `piFlow.exe` | 主程序 |
 | `runtime\` | 内置 Node 运行时 |
-| `models\` | 嵌入模型等 |
+| `models\` | 模型清单（权重首次启动下载） |
 | `rag-server.zip` | RAG 后端包（首次启动解压） |
 | `README.txt` | 简要说明 |
 
 ### 3.2 首次启动
 
 1. 双击 **`piFlow.exe`**  
-2. 首次启动会自动将后端解压到：  
-   `%APPDATA%\piFlow\sidecar\`  
+2. 首次启动会自动将后端解压到 `%APPDATA%\piFlow\sidecar\`，并把嵌入模型 BGE-M3（约 1.1 GB）下载到 `%APPDATA%\piFlow\models\`。也可在 **Settings → 嵌入模型** 查看放置路径与下载地址后自行下载。  
 3. 等待窗口打开；后端默认监听本机端口 **`3847`**  
 4. 若杀毒软件拦截，请将安装目录与上述 AppData 目录加入白名单后重试  
 
@@ -96,6 +95,7 @@ author: "piFlow"
 | 内容 | 大致位置 |
 |------|----------|
 | 用户数据 / 数据库 / 日志 | `%APPDATA%\piFlow\` |
+| 嵌入模型（BGE-M3） | `%APPDATA%\piFlow\models\` |
 | 后端解压目录 | `%APPDATA%\piFlow\sidecar\` |
 | 开发态数据目录 | 仓库内 `.data\`（含 `piflow.db`、Ollama / Postgres / piFlow 配置） |
 
@@ -111,7 +111,7 @@ author: "piFlow"
 |------|------|
 | **piFlow（主对话）** | Pi Agent：知识库检索（kb tools）+ Postgres 只读 + 可选本地文件；会话与 Sources 引用 |
 | **Knowledge Base（知识库）** | 导入文件夹、查看已索引文档、导入进度与活动日志（不承担主问答） |
-| **Settings（设置）** | 模型（Ollama/DeepSeek）、Postgres、Local FS / Knowledge Skill、服务状态等 |
+| **Settings（设置）** | 生成模型（Ollama/DeepSeek）、嵌入模型（BGE-M3 下载/手摆）、Postgres、Local FS / Knowledge Skill、服务状态等 |
 
 侧边栏 **New Chat** 新建 **piFlow** 会话；会话列表为 piFlow 历史。导入文档后，piFlow 的 Knowledge skill 状态会更新为「已就绪」。
 

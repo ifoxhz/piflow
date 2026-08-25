@@ -5,7 +5,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 IN="$ROOT/docs/piFlow-full-middle-3x.mp4"
-OUT="$ROOT/docs/piFlow-full-middle-3x.gif"
+OUT="$ROOT/docs/piFlow-demo.gif"
 WORK="${TMPDIR:-/tmp}/piflow-gif-$$"
 mkdir -p "$WORK"
 cleanup() { rm -rf "$WORK"; }

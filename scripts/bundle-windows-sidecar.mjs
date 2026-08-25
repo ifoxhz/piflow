@@ -2,7 +2,7 @@
  * Prepare Windows install resources under apps/desktop/src-tauri/resources/:
  *   runtime/node.exe
  *   rag-server.zip  (prod deploy of @bluelamp/rag-server, junctions materialized)
- *   models/         (BGE-M3 + slim manifest)
+ *   models/         (slim manifest only; weights download at runtime)
  *
  * Run on Windows (PowerShell / cmd) from repo root:
  *   node scripts/bundle-windows-sidecar.mjs
@@ -325,6 +325,12 @@ patchPgActionsPackageExports(RAG_OUT);
 pruneUnusedPackages(RAG_OUT);
 ensureTopLevelPeers(RAG_OUT);
 
+const srcManifest = path.join(ROOT, 'models/manifest.json');
+mustExist(srcManifest, 'models/manifest.json');
+mkdirSync(path.join(RAG_OUT, 'models'), { recursive: true });
+copyFileSync(srcManifest, path.join(RAG_OUT, 'models/manifest.json'));
+log('copied models/manifest.json into rag-server deploy');
+
 // 3) Materialize (dereference junctions) then zip
 materializeForZip(RAG_OUT, RAG_FLAT);
 ensureTopLevelPeers(RAG_FLAT);
@@ -350,20 +356,15 @@ const nodeExe = findNodeExe();
 log(`copy node → ${nodeExe}`);
 copyFileSync(nodeExe, path.join(RUNTIME_OUT, 'node.exe'));
 
-// 5) Slim models: BGE-M3 only
+// 5) Slim models: manifest only (BGE-M3 downloads on first launch / Settings)
 const srcModels = path.join(ROOT, 'models');
-const bgeSrc = path.join(srcModels, 'Xenova/bge-m3');
-mustExist(path.join(bgeSrc, 'onnx/model_fp16.onnx'), 'run pnpm models:ensure first');
-log('copy BGE-M3…');
-cpSync(bgeSrc, path.join(MODELS_OUT, 'Xenova/bge-m3'), { recursive: true });
-
 const fullManifest = JSON.parse(readFileSync(path.join(srcModels, 'manifest.json'), 'utf-8'));
 const slim = {
   ...fullManifest,
   models: fullManifest.models.filter((m) => m.id === 'embedding.bge-m3'),
 };
 writeFileSync(path.join(MODELS_OUT, 'manifest.json'), JSON.stringify(slim, null, 2));
-log(`manifest models: ${slim.models.map((m) => m.id).join(', ')}`);
+log(`manifest models: ${slim.models.map((m) => m.id).join(', ')} (weights not bundled)`);
 
 // 6) Marker for Tauri / extract invalidation
 writeFileSync(
@@ -390,4 +391,4 @@ execSync(`node "${path.join(ROOT, 'scripts/prepare-empty-piflow-db.mjs')}"`, {
 });
 mustExist(path.join(RESOURCES, 'seed/piflow.db'), 'empty seed db');
 
-log('done → apps/desktop/src-tauri/resources/ (rag-server.zip + models + node + seed)');
+log('done → apps/desktop/src-tauri/resources/ (rag-server.zip + manifest + node + seed)');

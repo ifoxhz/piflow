@@ -127,12 +127,51 @@ export const QUICK_ACTIONS: QuickAction[] = [
   },
 ];
 
+export type ModelFileStatus = 'ready' | 'missing' | 'incomplete' | 'downloading' | 'error';
+
+export interface ModelDownloadProgress {
+  modelId: string;
+  status: 'idle' | 'downloading' | 'ready' | 'error';
+  file?: string;
+  downloadedBytes: number;
+  totalBytes?: number;
+  percent?: number;
+  error?: string;
+}
+
+export interface ModelCatalogEntry {
+  id: string;
+  name: string;
+  hubId: string;
+  localDir: string;
+  localPath: string;
+  required: boolean;
+  requiredFiles: string[];
+  download: {
+    mirror: string;
+    official: string;
+    files?: Array<{ name: string; url: string }>;
+  };
+  validation: {
+    status: ModelFileStatus;
+    missingFiles: string[];
+  };
+  progress?: ModelDownloadProgress;
+}
+
+export interface ModelsCatalogResponse {
+  modelsDir: string;
+  runtimeModelsDir: string;
+  requiredId: string;
+  models: ModelCatalogEntry[];
+}
+
 export interface HealthResponse {
   status: 'ok' | 'degraded' | 'error';
   ragServer: boolean;
   models?: Array<{
     id: string;
-    status: 'ready' | 'missing' | 'incomplete' | 'downloading' | 'error';
+    status: ModelFileStatus;
     missingFiles?: string[];
   }>;
 }

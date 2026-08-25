@@ -29,10 +29,41 @@ export function getRagServerUrl(): string {
 
 export async function fetchHealth() {
   const res = await fetch(`${RAG_SERVER_URL}/health`);
-  if (!res.ok) {
+  if (!res.ok && res.status !== 503) {
     throw new Error(`Health check failed: ${res.status}`);
   }
   return res.json();
+}
+
+export async function fetchModelsCatalog(): Promise<import('@bluelamp/core').ModelsCatalogResponse> {
+  const res = await fetch(`${RAG_SERVER_URL}/models`);
+  if (!res.ok) {
+    throw new Error(`读取模型清单失败: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function startModelDownload(
+  modelId: string,
+  options: { force?: boolean } = {},
+): Promise<void> {
+  const qs = options.force ? '?force=1' : '';
+  const res = await fetch(`${RAG_SERVER_URL}/models/${encodeURIComponent(modelId)}/download${qs}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ force: Boolean(options.force) }),
+  });
+  if (!res.ok && res.status !== 202) {
+    const text = await res.text().catch(() => '');
+    let message = `下载失败: ${res.status}`;
+    try {
+      const data = JSON.parse(text) as { error?: string };
+      if (data.error) message = data.error;
+    } catch {
+      if (text) message = text;
+    }
+    throw new Error(message);
+  }
 }
 
 export type ServerLogInfo = {
