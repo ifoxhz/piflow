@@ -1,183 +1,185 @@
 # piFlow
 
-**全本地 RAG 桌面应用** · 答案可追溯 · 隐私优先 · 轻量
+**A fully local RAG desktop app** — traceable answers · privacy-first · lightweight
 
-[English](README.en.md) | 简体中文
+English | [简体中文](README.zh.md)
 
-piFlow 是一款检索增强生成（RAG）桌面应用：导入本地文档构建知识库，然后用自然语言提问。解析、嵌入、检索、推理全部在你的机器上（或你指定的服务器上）运行——文档与对话始终不离开你的掌控。生成的答案附带来源引用，可追溯到具体的文档与段落。
+piFlow is a retrieval-augmented generation (RAG) desktop application: import local documents to build a knowledge base, then ask questions in natural language. Parsing, embedding, retrieval, and inference all run on your machine (or a server you specify) — documents and conversations never leave your control. Generated answers come with source citations you can trace back to the exact document and passage.
 
-主对话由 **piFlow Agent**（Pi harness）驱动：知识库以 Skill / Tools（`kb_*`）挂载，并可选用 Postgres 只读与本地文件 Skill。
+The main chat is driven by the **piFlow Agent** (Pi harness): the knowledge base is exposed as Skill / Tools (`kb_*`), with optional Postgres read-only and local filesystem Skills.
 
-![运行效果视频](docs/piFlow-demo.gif)
+![Demo video](docs/piFlow-demo.gif)
 
-[观看高清视频](docs/piFlow-full-middle-3x.mp4)
+[Watch full-quality video](docs/piFlow-full-middle-3x.mp4)
 
-## 特性
+## Features
 
-- **答案可追溯**：每条答案都附带引用与原文摘录，可点击定位到源文档和具体片段——让幻觉无所遁形
-- **隐私优先**：文档、向量索引、聊天记录都存储在本地 SQLite 数据库中，无任何云端依赖
-- **目录级导入**：选择目录即可递归导入，后台任务静默执行，活动日志实时显示进度
-- **智能检索流水线（reRAG）**：意图模板路由 → LLM 生成结构化检索计划 → 多路密集检索按意图动态 top-K 合并，并支持多轮共指消解
-- **多格式解析**：PDF（pdf-oxide / mupdf）、Markdown、TXT、HTML；扫描版 PDF 自动路由到 PaddleOCR
-- **可插拔生成后端**：本地 GGUF 推理（node-llama-cpp）、远程 Ollama（如局域网 GPU 服务器）、或 DeepSeek / Pleias-RAG-1B
-- **自动模型管理**：基于清单的模型注册表；缺失模型自动从 hf-mirror.com 镜像下载，并支持强制重新下载
-- **piFlow Agent**：主对话入口；可开关的 Knowledge RAG / Postgres 只读 / 本地文件 Skill（Pi harness + SSE）
+- **Traceable answers**: every answer ships with citations and verbatim excerpts, clickable down to the source document and chunk — keeping hallucination in check
+- **Privacy-first**: documents, vector index, and chat history live in a local SQLite database; no cloud dependency
+- **Folder-level ingestion**: pick a directory and import it recursively; a background job does the work with real-time progress in the activity log
+- **Smart retrieval pipeline (reRAG)**: intent template routing → LLM-generated structured retrieval plan → multi-way dense retrieval merged with dynamic top-K per intent, with multi-turn coreference resolution
+- **Multi-format parsing**: PDF (pdf-oxide / mupdf), Markdown, TXT, HTML; scanned PDFs automatically routed to PaddleOCR
+- **Pluggable generation backends**: local GGUF inference (node-llama-cpp), remote Ollama (e.g. a LAN GPU server), DeepSeek, or Pleias-RAG-1B
+- **Automatic model management**: manifest-driven model registry; missing models download automatically from the hf-mirror.com mirror, with forced re-download support
+- **piFlow Agent**: primary chat entry; toggleable Knowledge RAG / Postgres read-only / Local FS Skills (Pi harness + SSE)
 
-## 架构
+## Architecture
 
-采用 Tauri 2 + Node Sidecar 双进程设计：Tauri 仅作为薄 UI 外壳，所有 RAG 推理与原生模块运行在独立的 Node 进程中。前后端通过 localhost HTTP / SSE 通信。
+A Tauri 2 + Node Sidecar dual-process design: Tauri is only a thin UI shell, while all RAG inference and native modules run in a separate Node process. Frontend and backend talk over localhost HTTP / SSE.
 
 ```
 ┌────────────────────────────────────────────────────┐
 │         Tauri WebView (React + TypeScript)          │
-│   知识库 · piFlow（主对话）· 引用 · 设置             │
+│   Knowledge · piFlow (main chat) · Citations · Settings │
 └──────────────────────┬─────────────────────────────┘
                        │ HTTP / SSE (localhost)
 ┌──────────────────────▼─────────────────────────────┐
 │            Node Sidecar (apps/rag-server)           │
 │                                                     │
-│  RAG：导入 → 解析 → 分块 → BGE-M3 → 检索 → 生成     │
-│  piFlow：Pi Agent + Skills（KB / Postgres / FS）    │
+│  RAG: ingest → parse → chunk → BGE-M3 → retrieve    │
+│  piFlow: Pi Agent + Skills (KB / Postgres / FS)     │
 │                                                     │
-│  SQLite · pg-actions · 模型缓存 · 文件               │
+│  SQLite · pg-actions · model cache · files          │
 └─────────────────────────────────────────────────────┘
 ```
 
-便携版用户数据目录：`%APPDATA%\piFlow\`（开发态默认为仓库内 `.data\`）。
+Portable app data directory: `%APPDATA%\piFlow\` (dev default: repo `.data\`).
 
-完整设计文档见 [docs/architecture.md](docs/architecture.md)（[English](docs/architecture.en.md)）、[docs/piflow.md](docs/piflow.md) 与 [docs/reRAG.md](docs/reRAG.md)。
+See [docs/architecture.md](docs/architecture.md) ([English](docs/architecture.en.md)), [docs/piflow.md](docs/piflow.md), and [docs/reRAG.md](docs/reRAG.md) for full design documents (piflow/reRAG currently Chinese).
 
-## 技术栈
+## Tech Stack
 
-| 层级 | 技术 |
-|------|------|
-| 桌面外壳 | Tauri 2（Rust 仅负责窗口与 sidecar 生命周期） |
-| 前端 | React 19 + TypeScript + Vite |
-| RAG 后端 | Node.js + Hono（HTTP / SSE） |
-| 嵌入 | BGE-M3（Xenova ONNX，`@huggingface/transformers`，worker 线程） |
-| 生成 | Qwen2.5-3B-Instruct GGUF（node-llama-cpp）/ Ollama / DeepSeek / Pleias-RAG-1B |
-| 存储 | better-sqlite3（元数据 + 向量，余弦相似度检索） |
-| 解析 | pdf-oxide · mupdf · PaddleOCR（扫描文档） |
-| 包管理 | pnpm workspaces（monorepo） |
+| Layer | Technology |
+|-------|-----------|
+| Desktop shell | Tauri 2 (Rust handles only windowing & sidecar lifecycle) |
+| Frontend | React 19 + TypeScript + Vite |
+| RAG backend | Node.js + Hono (HTTP / SSE) |
+| Embedding | BGE-M3 (Xenova ONNX, `@huggingface/transformers`, worker thread) |
+| Generation | Qwen2.5-3B-Instruct GGUF (node-llama-cpp) / Ollama / DeepSeek / Pleias-RAG-1B |
+| Storage | better-sqlite3 (metadata + vectors, cosine similarity search) |
+| Parsing | pdf-oxide · mupdf · PaddleOCR (scanned documents) |
+| Package management | pnpm workspaces (monorepo) |
 
-## 快速开始（WSL / Linux）
+## Getting Started (WSL / Linux)
 
-前置条件：Node.js ≥ 20、pnpm 10。请将仓库放在 Linux 文件系统（`~/`）下，而非 `/mnt/c/`。
+Prerequisites: Node.js ≥ 20, pnpm 10. Keep the repo on the Linux filesystem (`~/`), not `/mnt/c/`.
 
 ```bash
 pnpm install
-cp .env.example .env   # 按需调整
+cp .env.example .env   # adjust as needed
 
-# 下载模型（国内镜像）
+# Download models (China mirror)
 export HF_ENDPOINT=https://hf-mirror.com
 pnpm models:ensure
 
-# 终端 1：RAG 后端（http://127.0.0.1:3847）
+# Terminal 1: RAG backend (http://127.0.0.1:3847)
 pnpm dev:server
 
-# 终端 2：前端（在浏览器打开 http://localhost:1420）
+# Terminal 2: frontend (open http://localhost:1420 in a browser)
 pnpm dev:ui
 
-# 或并行启动两者
+# Or run both in parallel
 pnpm dev
 ```
 
-## 模型
+## Models
 
-模型注册表：[models/manifest.json](models/manifest.json)；详情：[models/README.md](models/README.md)。
+Model registry: [models/manifest.json](models/manifest.json); details: [models/README.md](models/README.md).
 
-| 用途 | 模型 | 大小 |
-|------|------|------|
-| 嵌入 | Xenova/bge-m3（ONNX fp16） | ~1.1 GB |
-| 本地生成 | Qwen2.5-3B-Instruct GGUF（q4_k_m） | ~2 GB |
-| 生成（可选） | Pleias-RAG-1B GGUF | ~2.4 GB |
-| OCR | PaddleOCR | 随包附带 |
+| Purpose | Model | Size |
+|---------|-------|------|
+| Embedding | Xenova/bge-m3 (ONNX fp16) | ~1.1 GB |
+| Local generation | Qwen2.5-3B-Instruct GGUF (q4_k_m) | ~2 GB |
+| Generation (optional) | Pleias-RAG-1B GGUF | ~2.4 GB |
+| OCR | PaddleOCR | bundled |
 
-**推荐配置**：16 GB 内存、10 GB 可用磁盘空间。
+**Recommended hardware**: 16 GB RAM, 10 GB free disk space.
 
-## 配置
+## Configuration
 
-关键环境变量（完整列表见 [.env.example](.env.example)）：
+Key environment variables (full list in [.env.example](.env.example)):
 
-| 变量 | 说明 |
-|------|------|
-| `HF_ENDPOINT` | Hugging Face 镜像，默认 `https://hf-mirror.com` |
-| `PIFLOW_RAG_PORT` | RAG 服务端口，默认 `3847` |
-| `PIFLOW_MODELS_DIR` | 模型目录，默认仓库内 `models/` |
-| `PIFLOW_DATA_DIR` | 数据目录；未设置时开发态用仓库 `.data/`，打包版由壳注入 `%APPDATA%\piFlow\` |
-| `PIFLOW_USE_LOCAL_LLM` | 设为 `true` 启用本地 GGUF 生成（无需 Ollama） |
-| `PIFLOW_OLLAMA_URL` / `PIFLOW_OLLAMA_MODEL` | 远程 Ollama 端点与模型 |
+| Variable | Description |
+|----------|-------------|
+| `HF_ENDPOINT` | Hugging Face mirror, defaults to `https://hf-mirror.com` |
+| `PIFLOW_RAG_PORT` | RAG server port, defaults to `3847` |
+| `PIFLOW_MODELS_DIR` | Model directory, defaults to `models/` in the repo |
+| `PIFLOW_DATA_DIR` | Data directory; unset → repo `.data/` in dev; packaged app injects `%APPDATA%\piFlow\` |
+| `PIFLOW_USE_LOCAL_LLM` | Set `true` for local GGUF generation (no Ollama needed) |
+| `PIFLOW_OLLAMA_URL` / `PIFLOW_OLLAMA_MODEL` | Remote Ollama endpoint and model |
 
-## Windows 安装包
+## Windows installer
 
-请在 **Windows 本机**打包（不要只在 WSL 里打 Windows 包）。产物是 **NSIS 安装程序**（`.exe` 安装包）。嵌入模型 BGE-M3（~1.1GB）**不打进包内**：安装后首次启动自动下载到 `%APPDATA%\piFlow\models\`，也可在 Settings 查看路径与下载地址后手动放置。
+Build on a **native Windows** machine (not WSL-only). The release is an **NSIS setup `.exe`**. The BGE-M3 embedding model (~1.1 GB) is **not** bundled: it downloads on first launch into `%APPDATA%\piFlow\models\`, or you can place the files yourself (Settings shows the path and URLs).
 
-### 前置
+### Prerequisites
 
-- Node.js ≥ 20、pnpm 10、Git
-- Rust（`x86_64-pc-windows-msvc`）+ Visual Studio Build Tools（C++ 桌面开发）
-- WebView2 Runtime（Win10/11 通常已有）
+- Node.js ≥ 20, pnpm 10, Git
+- Rust (`x86_64-pc-windows-msvc`) + Visual Studio Build Tools (Desktop development with C++)
+- WebView2 Runtime (usually already on Win10/11)
 
-完整清单见 [docs/development-windows.md](docs/development-windows.md)。
+Full checklist: [docs/development-windows.md](docs/development-windows.md).
 
-### 一键构建
+### One-shot build
 
-在仓库根目录（PowerShell）：
+From the repo root (PowerShell):
 
 ```powershell
 pnpm install
 pnpm build:windows
 ```
 
-`pnpm build:windows` 依次会：
+`pnpm build:windows` runs:
 
-1. `bundle:windows-sidecar` — 打包 Node runtime、`rag-server`、模型清单（不含权重）到 Tauri resources  
-2. `tauri build --bundles nsis` — 编译并生成 NSIS 安装包  
-3. `package:windows-installer` — 复制到 `dist-windows/`
+1. `bundle:windows-sidecar` — pack Node runtime, `rag-server`, and the model manifest (no weights) into Tauri resources  
+2. `tauri build --bundles nsis` — compile and build the NSIS installer  
+3. `package:windows-installer` — copy the setup exe to `dist-windows/`
 
-需要绿色版 zip 时，可另跑 `pnpm package:windows-portable`（须已完成一次 Tauri 编译）。
+For a portable zip, run `pnpm package:windows-portable` after a Tauri build.
 
-### 产物
+### Artifacts
 
-| 路径 | 说明 |
-|------|------|
-| `dist-windows/piFlow-<version>-x64-setup.exe` | Windows 安装包（NSIS） |
+| Path | Description |
+|------|-------------|
+| `dist-windows/piFlow-<version>-x64-setup.exe` | Windows installer (NSIS) |
 
-双击安装。安装过程会解压后端到 `%APPDATA%\piFlow\sidecar\`；BGE-M3 在首次启动时下载到 `%APPDATA%\piFlow\models\`；用户数据 / 数据库 / 日志也在 `%APPDATA%\piFlow\`。
+Run the setup exe. Installation extracts the backend under `%APPDATA%\piFlow\sidecar\`; first launch downloads BGE-M3 into `%APPDATA%\piFlow\models\`; user data / DB / logs live in `%APPDATA%\piFlow\`.
 
-LLM 在 Settings 中配置 Ollama 或 DeepSeek；未配置时仍可导入与检索。
+Configure Ollama or DeepSeek in Settings; import and retrieval work without a generation backend.
 
-## 项目结构
+## Project Structure
 
 ```
-apps/desktop/     Tauri + React 桌面 UI
-apps/rag-server/  Node HTTP 服务（RAG + piFlow，Hono）
-packages/core/    共享类型、分块器与 RAG 核心逻辑
-packages/pg-actions/  piFlow Postgres 只读 tools
-models/           模型清单与本地缓存
-scripts/          模型下载与服务管理脚本
-docs/             架构文档、用户手册与 ADR
+apps/desktop/     Tauri + React desktop UI
+apps/rag-server/  Node HTTP service (RAG + piFlow, Hono)
+packages/core/    Shared types, chunker, and RAG core logic
+packages/pg-actions/  piFlow Postgres read-only tools
+models/           Model manifest and local cache
+scripts/          Model download and service management scripts
+docs/             Architecture docs, user manual, and ADRs (in Chinese)
 ```
 
-## 文档
+## Documentation
 
-- [架构设计](docs/architecture.md)（[English](docs/architecture.en.md)）— 系统设计、模块划分、平台策略
-- [piFlow 设计](docs/piflow.md) — Agent / Skill / SSE / 信息源策略
-- [用户手册（中文）](docs/user-manual.zh.md) — 安装、RAG、piFlow、设置与 FAQ
-- [reRAG：结构化预检索规划](docs/reRAG.md) — 模板路由 + 检索规划流水线
-- [检索质量升级](docs/retrieval-quality-upgrade.md) — 混合检索与 RRF 融合（提案）
-- [知识库目录导入](docs/knowledge-base-import.md)
-- [WSL 开发指南](docs/development-wsl.md)
-- [Windows 编译与运行清单](docs/development-windows.md)
-- ADR：[001 Tauri + Sidecar](docs/adr/001-tauri-sidecar.md) · [002 文档解析](docs/adr/002-document-parsing.md) · [003 模型管理](docs/adr/003-model-management.md) · [004 WSL 开发 / Windows 发布](docs/adr/004-wsl-dev-windows-release.md)
+> Design documents are written in Chinese.
 
-## 路线图
+- [Architecture](docs/architecture.md) ([English](docs/architecture.en.md)) — system design, modules, platform strategy
+- [piFlow design](docs/piflow.md) — Agent / Skill / SSE / information-source policy
+- [User manual (zh)](docs/user-manual.zh.md) — install, RAG, piFlow, settings, FAQ
+- [reRAG: structured pre-retrieval planning](docs/reRAG.md) — template routing + retrieval planning pipeline
+- [Retrieval quality upgrade](docs/retrieval-quality-upgrade.md) — hybrid retrieval & RRF fusion (proposal)
+- [Knowledge base folder import](docs/knowledge-base-import.md)
+- [WSL development guide](docs/development-wsl.md)
+- [Windows build & run checklist](docs/development-windows.md)
+- ADRs: [001 Tauri + Sidecar](docs/adr/001-tauri-sidecar.md) · [002 Document parsing](docs/adr/002-document-parsing.md) · [003 Model management](docs/adr/003-model-management.md) · [004 WSL dev / Windows release](docs/adr/004-wsl-dev-windows-release.md)
 
-- **阶段 1 — MVP（进行中）**：monorepo 脚手架、RAG sidecar、文档导入、带引用的聊天、模型管理；Windows 安装包（`pnpm build:windows`）
-- **阶段 2 — 体验**：Docling 处理复杂文档、混合检索（BM25 + dense RRF）、模型下载 UI、推理轨迹可视化
-- **阶段 3 — Windows 增强**：安装包体积优化、可选 OCR、CUDA 检测
-- **阶段 4 — 进阶**：多个隔离的知识库、多轮上下文管理、可插拔文档源
+## Roadmap
 
-## 许可证
+- **Phase 1 — MVP (in progress)**: monorepo scaffolding, RAG sidecar, document ingestion, chat with citations, model management; Windows installer (`pnpm build:windows`)
+- **Phase 2 — Experience**: Docling for complex documents, hybrid retrieval (BM25 + dense RRF), model download UI, reasoning-trace visualization
+- **Phase 3 — Windows hardening**: package size optimization, optional OCR, CUDA detection
+- **Phase 4 — Advanced**: multiple isolated knowledge bases, multi-turn context management, pluggable document sources
+
+## License
 
 [MIT](LICENSE)
